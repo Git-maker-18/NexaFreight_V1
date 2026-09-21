@@ -102,6 +102,14 @@ async def test_all_expected_tables_exist_after_upgrade(tmp_path: Path) -> None:
             "corridor_alternatives",
             "decisions",
             "audit_logs",
+            "parameter_policy",
+            "parameter_empirical",
+            "network_nodes",
+            "network_edges",
+            "edge_schedules",
+            "transshipment_links",
+            "route_plans",
+            "route_legs",
             "alembic_version",  # Alembic's version tracking table
         }
         assert (

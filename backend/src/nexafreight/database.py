@@ -60,7 +60,8 @@ def create_engine(settings: Settings | None = None, *, echo: bool | None = None)
         echo: SQLAlchemy echo mode; defaults to settings.debug if None.
 
     Returns:
-        Configured AsyncEngine with WAL mode and foreign key enforcement.
+        Configured AsyncEngine.  SQLite engines get WAL mode and FK pragmas;
+        PostgreSQL engines get no special hooks (the server handles it).
 
     Example:
         >>> engine = create_engine()
@@ -71,6 +72,7 @@ def create_engine(settings: Settings | None = None, *, echo: bool | None = None)
         settings = get_settings()
 
     database_url = settings.database_url
+    is_sqlite = database_url.startswith("sqlite")
     is_memory = ":memory:" in database_url
 
     engine = create_async_engine(
@@ -78,10 +80,11 @@ def create_engine(settings: Settings | None = None, *, echo: bool | None = None)
         echo=echo if echo is not None else settings.debug,
     )
 
-    # Register pragma setter on the sync engine (aiosqlite DBAPI events fire on sync_engine)
-    @event.listens_for(engine.sync_engine, "connect")
-    def on_connect(dbapi_conn: Any, connection_record: Any) -> None:
-        _set_sqlite_pragmas(dbapi_conn, connection_record, is_memory=is_memory)
+    if is_sqlite:
+        # Register pragma setter on the sync engine (aiosqlite DBAPI events fire on sync_engine)
+        @event.listens_for(engine.sync_engine, "connect")
+        def on_connect(dbapi_conn: Any, connection_record: Any) -> None:
+            _set_sqlite_pragmas(dbapi_conn, connection_record, is_memory=is_memory)
 
     return engine
 
@@ -239,3 +242,31 @@ async def drop_all_tables(engine: AsyncEngine) -> None:
     """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
+
+# ---------------------------------------------------------------------------
+# Dialect-aware upsert helper
+# ---------------------------------------------------------------------------
+def dialect_insert(table):  # type: ignore[no-untyped-def]
+    """Return the dialect-specific ``insert`` construct for *table*.
+
+    Both SQLite and PostgreSQL expose ``.on_conflict_do_update()`` with an
+    identical API, so callers can use this as a drop-in replacement for
+    ``from sqlalchemy.dialects.sqlite import insert``.
+
+    Usage::
+
+        from nexafreight.database import dialect_insert
+        stmt = dialect_insert(MyModel).values(...).on_conflict_do_update(...)
+    """
+    settings = get_settings()
+    url = settings.database_url
+    if url.startswith("postgresql") or url.startswith("postgres"):
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        return pg_insert(table)
+    else:
+        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+        return sqlite_insert(table)
+

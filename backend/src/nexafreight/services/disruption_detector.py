@@ -31,7 +31,7 @@ from nexafreight.enums import (
     DisruptionType,
     LegStatus,
 )
-from nexafreight.models import Leg, Port, PortDailyStat
+from nexafreight.models import Leg, Port, PortDailyStat, Order
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +42,10 @@ logger = logging.getLogger(__name__)
 #: Progress gap (planned − actual) above which a vessel delay is flagged.
 VESSEL_PROGRESS_GAP_THRESHOLD: float = 0.15
 
-#: Daily congestion index ratio (today / 90d avg) that flags congestion.
-CONGESTION_RATIO_THRESHOLD: float = 1.5
+from nexafreight.core import params
+
+#: Progress gap (planned − actual) above which a vessel delay is flagged.
+VESSEL_PROGRESS_GAP_THRESHOLD: float = 0.15
 
 #: Absolute congestion index floor — tiny indices are too noisy to trust.
 MIN_CONGESTION_INDEX: float = 0.5
@@ -51,13 +53,6 @@ MIN_CONGESTION_INDEX: float = 0.5
 #: Rolling baseline window (days) for the congestion average.
 BASELINE_DAYS: int = 90
 
-#: Base delay per severity band (hours).
-SEVERITY_BAND_DELAY_HOURS: dict[AlertSeverity, float] = {
-    AlertSeverity.LOW: 12.0,
-    AlertSeverity.MEDIUM: 24.0,
-    AlertSeverity.HIGH: 48.0,
-    AlertSeverity.CRITICAL: 96.0,
-}
 
 #: Multiplier applied to weather-driven estimates.
 WEATHER_SEVERE_MULTIPLIER: float = 1.5
@@ -109,20 +104,32 @@ def _floor_severity(severity: AlertSeverity, floor: AlertSeverity) -> AlertSever
 def classify_severity(
     estimated_delay_hours: float,
     *,
+    sla_cushion_hours: float | None = None,
     has_sla_breach: bool = False,
 ) -> AlertSeverity:
     """Map an estimated delay to an alert severity.
-
+    
+    Now relative to the shipment's SLA cushion if known.
     Floors: >72h ⇒ CRITICAL; any known SLA breach ⇒ at least HIGH.
     """
     if estimated_delay_hours > 72:
         return AlertSeverity.CRITICAL
-    if estimated_delay_hours > 48:
-        sev = AlertSeverity.HIGH
-    elif estimated_delay_hours > 24:
-        sev = AlertSeverity.MEDIUM
+        
+    if sla_cushion_hours is not None:
+        if estimated_delay_hours >= sla_cushion_hours:
+            sev = AlertSeverity.HIGH
+        elif estimated_delay_hours >= sla_cushion_hours * 0.5:
+            sev = AlertSeverity.MEDIUM
+        else:
+            sev = AlertSeverity.LOW
     else:
-        sev = AlertSeverity.LOW
+        if estimated_delay_hours > 48:
+            sev = AlertSeverity.HIGH
+        elif estimated_delay_hours > 24:
+            sev = AlertSeverity.MEDIUM
+        else:
+            sev = AlertSeverity.LOW
+
     if has_sla_breach:
         sev = _floor_severity(sev, AlertSeverity.HIGH)
     return sev
@@ -133,25 +140,28 @@ def estimate_delay_hours(
     *,
     congestion_ratio: float | None = None,
     weather_severe: bool = False,
+    port_locode: str | None = None,
 ) -> float:
-    """Estimate disruption delay in hours from the severity bands.
-
-    band_delay = base band for the disruption type
-    congestion  ⇒ base × (ratio − 0.5)
-    weather     ⇒ base × 1.5 when severe
-    """
+    """Estimate disruption delay in hours."""
     dtype = DisruptionType(str(disruption_type))
 
-    if dtype is DisruptionType.VESSEL_DELAY:
-        base = SEVERITY_BAND_DELAY_HOURS[AlertSeverity.MEDIUM]
-    elif dtype is DisruptionType.PORT_CONGESTION:
-        base = SEVERITY_BAND_DELAY_HOURS[AlertSeverity.MEDIUM]
+    if dtype is DisruptionType.PORT_CONGESTION:
         if congestion_ratio is not None:
-            return base * (congestion_ratio - 0.5)
+            default_p50 = params.get_float("port.dwell.p50.default")
+            default_p90 = params.get_float("port.dwell.p90_ext.default")
+            p50 = params.get_float(f"port.dwell.p50.{port_locode}", default_p50) if port_locode else default_p50
+            p90_ext = params.get_float(f"port.dwell.p90_ext.{port_locode}", default_p90) if port_locode else default_p90
+            delay = min(congestion_ratio - 1.0, 3.0) * p50
+            if congestion_ratio > 2.5:
+                delay += p90_ext
+            return max(0.0, delay)
+        base = params.get_float("disruption.delay.default_h")
+    elif dtype is DisruptionType.VESSEL_DELAY:
+        base = params.get_float("disruption.delay.vessel_h")
     elif dtype is DisruptionType.WEATHER:
-        base = SEVERITY_BAND_DELAY_HOURS[AlertSeverity.HIGH]
+        base = params.get_float("disruption.delay.weather_h")
     else:  # MANUAL and anything unmapped
-        base = SEVERITY_BAND_DELAY_HOURS[AlertSeverity.MEDIUM]
+        base = params.get_float("disruption.delay.default_h")
 
     hours = base * (WEATHER_SEVERE_MULTIPLIER if weather_severe else 1.0)
     return hours
@@ -275,7 +285,9 @@ async def check_port_congestion(
             continue
 
         ratio = today_index / baseline_avg
-        if ratio < CONGESTION_RATIO_THRESHOLD or today_index < min_index:
+        congestion_threshold = params.get_float("disruption.congestion.ratio_p90", 1.5)
+        
+        if ratio < congestion_threshold or today_index < min_index:
             continue
 
         # Inbound shipments: legs ending at this port still en route.
@@ -292,10 +304,27 @@ async def check_port_congestion(
             if leg.shipment_id in seen:
                 continue
             seen.add(leg.shipment_id)
-            delay = estimate_delay_hours(
-                DisruptionType.PORT_CONGESTION, congestion_ratio=ratio
-            )
             locode = port.locode or f"PORT-{port.id}"
+            delay = estimate_delay_hours(
+                DisruptionType.PORT_CONGESTION, congestion_ratio=ratio, port_locode=locode
+            )
+            
+            # SLA cushion computation
+            sla_cushion_hours = None
+            orders = (await session.execute(
+                select(Order).where(Order.shipment_id == leg.shipment_id)
+            )).scalars().all()
+            
+            cushions = []
+            for order in orders:
+                if order.sla_deadline and leg.planned_arrival:
+                    # ensure naive datetime if needed or matched timezone
+                    arr = leg.planned_arrival if leg.planned_arrival.tzinfo else leg.planned_arrival.replace(tzinfo=UTC)
+                    c_hours = (order.sla_deadline - arr).total_seconds() / 3600.0
+                    cushions.append(c_hours)
+            if cushions:
+                sla_cushion_hours = min(cushions)
+            
             candidates.append(
                 DetectionCandidate(
                     disruption_type=DisruptionType.PORT_CONGESTION,
@@ -306,7 +335,7 @@ async def check_port_congestion(
                         f"Port congestion at {locode}: index {today_index:.2f} today vs "
                         f"{baseline_avg:.2f} 90-day average (ratio {ratio:.1f})"
                     ),
-                    severity_hint=classify_severity(delay),
+                    severity_hint=classify_severity(delay, sla_cushion_hours=sla_cushion_hours),
                 )
             )
 

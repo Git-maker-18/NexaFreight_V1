@@ -220,8 +220,8 @@ async def test_generic_fallback_when_no_corridor_matches(
     options = await generate_options(db_session, fx["alert"], now=NOW)
     divert = options[1]
     assert divert.option_key == "DIVERT_GENERIC"
-    assert divert.route_template is None  # placeholder — not executable
-    assert any("generic" in a.lower() for a in divert.assumptions)
+    assert "legs" in divert.route_template
+    assert len(divert.route_template["legs"]) >= 1
 
 
 async def test_modal_shift_option_math(
@@ -247,8 +247,13 @@ async def test_modal_shift_revised_eta_uses_now_as_anchor(
     fx = await _traffic_jam(db_session, make_shipment, make_order, make_leg, make_location)
     options = await generate_options(db_session, fx["alert"], now=NOW)
     modal = options[2]
-    # 5000/800 + 12 = 18.25h from now
-    assert modal.revised_eta == NOW + timedelta(hours=18.25)
+    from nexafreight.core import params
+    speed = params.get_float("air.cruise_speed_kmh", 860.0)
+    taxi = params.get_float("air.taxi_hours", 0.3)
+    climb = params.get_float("air.climb_descent_hours", 0.4)
+    handling = params.get_float("air.handling_hours", 12.0)
+    transit_hours = 5000 / speed + taxi + climb + handling
+    assert modal.revised_eta == NOW + timedelta(hours=transit_hours)
 
 
 async def test_options_for_shipment_without_orders(

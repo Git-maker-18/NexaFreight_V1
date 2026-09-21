@@ -23,6 +23,7 @@ from enum import StrEnum
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from nexafreight.core import params
 from nexafreight.enums import AlertStatus, OrderSlaStatus, ShipmentStatus
 from nexafreight.models import Alert, AuditLog, Order, Shipment
 from nexafreight.services.alert_engine import latest_planned_arrival
@@ -32,9 +33,7 @@ logger = logging.getLogger(__name__)
 #: Minutes a CRITICAL alert may stay unacknowledged before escalation.
 ACK_SLA_MINUTES: int = 60
 
-#: Cushion thresholds (days before the deadline an ETA may sit).
-CUSHION_ON_TIME_DAYS: float = 3.0
-CUSHION_LOW_DAYS: float = 1.0
+
 
 
 class SlaRisk(StrEnum):
@@ -49,34 +48,31 @@ class SlaRisk(StrEnum):
 
 def compute_sla_risk(
     deadline: datetime | None,
-    current_eta: datetime | None,
+    predicted_p85_arrival: datetime | None,
 ) -> SlaRisk:
-    """SLA risk for an order delivered at ``current_eta`` vs ``deadline``.
+    """SLA risk for an order delivered at predicted_p85_arrival vs deadline.
 
     - ETA unknown → ON_TIME (no basis to warn)
-    - ETA past deadline → BREACH
-    - Cushion >= 3 days → ON_TIME
-    - Cushion >= 1 day → LOW
-    - Cushion >= 12 hours → MEDIUM
-    - Less than that → HIGH
+    - slack < 0 → BREACH
+    - slack < 12h → HIGH
+    - slack < 36h → MEDIUM
+    - Else → ON_TIME
     """
-    if deadline is None or current_eta is None:
+    if deadline is None or predicted_p85_arrival is None:
         return SlaRisk.ON_TIME
     if deadline.tzinfo is None:
         deadline = deadline.replace(tzinfo=UTC)
-    if current_eta.tzinfo is None:
-        current_eta = current_eta.replace(tzinfo=UTC)
+    if predicted_p85_arrival.tzinfo is None:
+        predicted_p85_arrival = predicted_p85_arrival.replace(tzinfo=UTC)
 
-    if current_eta > deadline:
+    slack_hours = (deadline - predicted_p85_arrival).total_seconds() / 3600.0
+    if slack_hours < 0:
         return SlaRisk.BREACH
-    cushion_days = (deadline - current_eta).total_seconds() / 86400.0
-    if cushion_days >= CUSHION_ON_TIME_DAYS:
-        return SlaRisk.ON_TIME
-    if cushion_days >= CUSHION_LOW_DAYS:
-        return SlaRisk.LOW
-    if cushion_days >= 0.5:
+    if slack_hours < 12.0:
+        return SlaRisk.HIGH
+    if slack_hours < 36.0:
         return SlaRisk.MEDIUM
-    return SlaRisk.HIGH
+    return SlaRisk.ON_TIME
 
 
 def _risk_to_order_status(risk: SlaRisk) -> OrderSlaStatus:
@@ -88,22 +84,72 @@ def _risk_to_order_status(risk: SlaRisk) -> OrderSlaStatus:
     return OrderSlaStatus.AT_RISK
 
 
-def _current_eta(shipment: Shipment) -> datetime | None:
-    """Current ETA: latest revised ETA from any open alert, else latest planned."""
-    best: datetime | None = None
+_registry = None
+
+def _get_eta_model():
+    global _registry
+    if _registry is None:
+        from nexafreight.ml.registry import ModelRegistry
+        _registry = ModelRegistry()
+    return _registry.get_eta_model()
+
+def _predicted_p85(shipment: Shipment, order: Order, session: AsyncSession) -> datetime | None:
+    """Gets P85 ETA prediction for an order."""
+    base_eta = None
     for alert in shipment.alerts:
         if str(alert.status) == AlertStatus.RESOLVED:
             continue
         try:
-            payload = json.loads(alert.sla_breach_details_json or "{}")
-        except json.JSONDecodeError:
+            if alert.sla_breach_details_json:
+                payload = json.loads(alert.sla_breach_details_json)
+                if rev := payload.get("revised_eta"):
+                    dt = datetime.fromisoformat(rev)
+                    if base_eta is None or dt > base_eta:
+                        base_eta = dt
+        except Exception:
             continue
-        eta_raw = payload.get("revised_eta")
-        if eta_raw:
-            eta = datetime.fromisoformat(eta_raw)
-            if best is None or eta > best:
-                best = eta
-    return best or latest_planned_arrival(shipment)
+    if base_eta is None:
+        base_eta = latest_planned_arrival(shipment)
+
+    try:
+        model = _get_eta_model()
+        live_legs = [leg for leg in shipment.legs if str(leg.status) != LegStatus.COMPLETED]
+        total_km = sum((leg.distance_km or 0.0) for leg in live_legs)
+        leg_count = max(1, len(live_legs))
+
+        order_date = order.order_date or datetime.now(UTC)
+        if order_date.tzinfo is None:
+            order_date = order_date.replace(tzinfo=UTC)
+        deadline = order.sla_deadline
+        if deadline and deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=UTC)
+
+        scheduled_days = max(
+            1.0,
+            ((deadline - order_date).total_seconds() / 86400.0) if deadline else 15.0,
+        )
+
+        features = {
+            "shipping_mode": str(shipment.primary_transport_mode),
+            "cargo_class": str(order.cargo_class),
+            "revenue": float(order.revenue),
+            "shipping_cost": float(order.shipping_cost),
+            "scheduled_shipping_days": scheduled_days,
+            "order_country": (shipment.origin.country_code if shipment.origin else "US"),
+            "customer_country": (shipment.destination.country_code if shipment.destination else "US"),
+            "product_price": float(order.items[0].unit_price if getattr(order, 'items', None) else order.revenue),
+            "order_profit": float(order.revenue - order.shipping_cost),
+            "sla_month": deadline.month if deadline else order_date.month,
+            "sla_weekday": deadline.weekday() if deadline else order_date.weekday(),
+            "sla_quarter": (((deadline.month - 1) // 3 + 1) if deadline else ((order_date.month - 1) // 3 + 1)),
+            "total_distance_km": total_km,
+            "leg_count": leg_count,
+        }
+        pred = model.predict(features)
+        return order_date + timedelta(days=float(pred.p85_eta_days))
+    except Exception as exc:
+        logger.warning(f"Failed to compute p85 for shipment {shipment.id}: {exc}")
+        return base_eta
 
 
 async def check_all_in_transit(
@@ -130,10 +176,10 @@ async def check_all_in_transit(
 
     for shipment in shipments:
         await session.refresh(shipment, ["legs", "orders", "alerts"])
-        eta = _current_eta(shipment)
         late = False
         for order in shipment.orders:
-            risk = compute_sla_risk(order.sla_deadline, eta)
+            p85 = _predicted_p85(shipment, order, session)
+            risk = compute_sla_risk(order.sla_deadline, p85)
             status = _risk_to_order_status(risk)
             counts[str(status)] += 1
             if status == OrderSlaStatus.LATE:

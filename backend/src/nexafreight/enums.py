@@ -149,3 +149,36 @@ class OrderSlaStatus(StrEnum):
     ON_TIME = "ON_TIME"
     AT_RISK = "AT_RISK"
     LATE = "LATE"
+
+
+class NodeType(StrEnum):
+    """Type of network node in the multimodal logistics graph."""
+
+    PORT = "PORT"
+    AIRPORT = "AIRPORT"
+    RAIL_TERMINAL = "RAIL_TERMINAL"
+    ICD = "ICD"
+    ROAD_HUB = "ROAD_HUB"
+    RIVER_TERMINAL = "RIVER_TERMINAL"
+
+
+class ShipmentPriority(StrEnum):
+    """Business priority level driving objective weight profiles in the planner."""
+
+    CRITICAL = "CRITICAL"
+    EXPRESS = "EXPRESS"
+    STANDARD = "STANDARD"
+    ECONOMY = "ECONOMY"
+
+
+class PlanType(StrEnum):
+    """Lifecycle category of a route plan.
+
+    - INITIAL: Generated at shipment creation.
+    - ALTERNATIVE: Generated on demand to show options.
+    - RECOVERY: Generated from the current node after a disruption.
+    """
+
+    INITIAL = "INITIAL"
+    ALTERNATIVE = "ALTERNATIVE"
+    RECOVERY = "RECOVERY"

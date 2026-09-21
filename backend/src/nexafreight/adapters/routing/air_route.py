@@ -8,9 +8,10 @@ from dataclasses import dataclass
 from geopy.distance import geodesic  # type: ignore
 
 from ._geometry import great_circle_geojson_str
+from nexafreight.core import params
 
 log = logging.getLogger("nexafreight.routing.air")
-DEFAULT_CRUISE_KMH = 900.0
+
 
 
 @dataclass
@@ -27,14 +28,19 @@ def compute_air_route(
     dest_lat: float,
     dest_lon: float,
     duration_hours: float | None = None,
-    cruise_speed_kmh: float = DEFAULT_CRUISE_KMH,
 ) -> AirRouteResult:
     distance_km = geodesic((origin_lat, origin_lon), (dest_lat, dest_lon)).kilometers
 
     if duration_hours and duration_hours > 0:
         duration_s = duration_hours * 3600.0
     else:
-        duration_s = (distance_km / cruise_speed_kmh) * 3600.0
+        # Block time model: taxi + climb/descent + cruise
+        taxi = params.get_float("air.taxi_hours", 0.3)
+        climb_descent = params.get_float("air.climb_descent_hours", 0.4)
+        cruise_speed = params.get_float("air.cruise_speed_kmh", 860.0)
+        
+        block_h = taxi + climb_descent + (distance_km / cruise_speed)
+        duration_s = block_h * 3600.0
 
     geometry = great_circle_geojson_str(origin_lat, origin_lon, dest_lat, dest_lon)
     return AirRouteResult(

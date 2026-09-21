@@ -74,7 +74,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import select
-from sqlalchemy.dialects.sqlite import insert
+from nexafreight.database import dialect_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from nexafreight.adapters.protocols import (
@@ -395,7 +395,7 @@ async def _write_position_report(
             mmsi_int = None
 
         stmt = (
-            insert(PositionReport)
+            dialect_insert(PositionReport)
             .values(
                 leg_id=leg_id,
                 asset_type=asset_type_val,

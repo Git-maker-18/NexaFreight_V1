@@ -1,6 +1,7 @@
 adagio==0.2.6
 aiosqlite==0.20.0
 alembic==1.13.3
+asyncpg>=0.29.0
 annotated-types==0.8.0
 anyio==4.15.1
 APScheduler==3.10.4
@@ -73,6 +74,7 @@ pre-commit==3.8.0
 proto-plus==1.28.2
 protobuf==5.29.6
 pyarrow==25.0.1
+psycopg2-binary>=2.9.9
 pyasn1==0.6.4
 pyasn1_modules==0.4.2
 pycparser==3.0

@@ -17,8 +17,8 @@ from nexafreight.exceptions import (
 )
 from nexafreight.models import Alert, AuditLog, CorridorAlternative, Disruption, Leg
 from nexafreight.services.decision_executor import (
-    MODE_SPEED_KMH,
     execute_decision,
+    get_mode_speed,
     haversine_km,
 )
 
@@ -195,7 +195,7 @@ async def test_execute_reroute_rewrites_legs_at_new_version(
         dep = dep.replace(tzinfo=UTC)
     assert abs((dep - NOW).total_seconds()) < 5  # clock chained from approval time
     assert nl.distance_km is not None and nl.distance_km > 0
-    expected_hours = nl.distance_km / MODE_SPEED_KMH["SEA"]
+    expected_hours = nl.distance_km / get_mode_speed("SEA")
     assert (nl.planned_arrival - nl.planned_departure).total_seconds() == pytest.approx(
         expected_hours * 3600, rel=0.01
     )
@@ -247,10 +247,10 @@ async def test_execute_missing_alert_raises_not_found(
         )
 
 
-async def test_execute_generic_divert_rejected_for_missing_template(
+async def test_execute_generic_divert_succeeds_with_new_template(
     db_session: AsyncSession, make_shipment, make_order, make_leg, seed_admin_user
 ) -> None:
-    """GENERIC placeholder can't be executed — no route_template to chain."""
+    """GENERIC placeholder can now be executed via parameter-driven default template."""
     shipment = await make_shipment(status="IN_TRANSIT", container_count=1)
     await make_leg(shipment_id=shipment.id, status=LegStatus.PLANNED)
     await make_order(order_number="ORD-GEN", shipment=shipment)
@@ -275,7 +275,8 @@ async def test_execute_generic_divert_rejected_for_missing_template(
     await db_session.commit()
     await db_session.refresh(alert, ["disruption"])
 
-    with pytest.raises(ValidationError):
-        await execute_decision(
-            db_session, alert_id=alert.id, option_key="DIVERT_GENERIC", user=seed_admin_user, now=NOW
-        )
+    decision = await execute_decision(
+        db_session, alert_id=alert.id, option_key="DIVERT_GENERIC", user=seed_admin_user, now=NOW
+    )
+    assert str(decision.action) == "REROUTE"
+    assert decision.chosen_option_key == "DIVERT_GENERIC"

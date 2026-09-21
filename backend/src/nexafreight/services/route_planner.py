@@ -53,9 +53,9 @@ GLEC_CO2_G_PER_TONNE_KM = {
     "RAIL": 22.0,
 }
 
-HANDLING_HOURS = 24.0
+from nexafreight.core import params
+
 DRAYAGE_KM = 50.0
-DRAYAGE_SPEED_KMH = 35.0
 
 
 @dataclass
@@ -151,9 +151,9 @@ class RoutePlanner:
     def __init__(
         self,
         road_router: RoadRouter | None = None,
-        sea_func: Callable[[float, float, float, float], SeaRouteResult] = compute_sea_route,
+        sea_func: Callable[..., SeaRouteResult] = compute_sea_route,
         air_func: Callable[..., AirRouteResult] = compute_air_route,
-        handling_hours: float = HANDLING_HOURS,
+        handling_hours: float | None = None,
     ) -> None:
         if road_router is not None:
             self.road = road_router
@@ -165,7 +165,7 @@ class RoutePlanner:
             
         self.sea_func = sea_func
         self.air_func = air_func
-        self.handling_hours = handling_hours
+        self.handling_hours = handling_hours if handling_hours is not None else params.get_float("planner.handling_hours")
 
     def build_plan(
         self,
@@ -290,10 +290,10 @@ class RoutePlanner:
             )
 
         if leg_type == "SEA_MAIN":
-            r_sea = self.sea_func(olat, olon, dlat, dlon)
+            # For this exercise, vessel_class could be driven by order data, defaulting to panamax
+            r_sea = self.sea_func(olat, olon, dlat, dlon, vessel_class="panamax")
             dist_km = r_sea.distance_nm * 1.852
-            duration_s = (r_sea.distance_nm / 14.0) * 3600.0  # 14 knots average
-            return r_sea.geometry_geojson, dist_km, duration_s, r_sea.route_quality
+            return r_sea.geometry_geojson, dist_km, r_sea.duration_s, r_sea.route_quality
 
         if leg_type == "AIR_MAIN":
             r_air = self.air_func(olat, olon, dlat, dlon)

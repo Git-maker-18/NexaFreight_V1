@@ -63,7 +63,22 @@ _CSV_DTYPE_MAP: dict[str, type] = {
 # Internal helpers
 # ---------------------------------------------------------------------------
 def _get_engine(db_path: Path | str = DB_PATH) -> sqlalchemy.engine.Engine:
-    """Return a read-only SQLAlchemy engine for the SQLite DB."""
+    """Return a read-only SQLAlchemy engine.
+
+    Uses DATABASE_URL from settings when available (cloud Postgres),
+    otherwise falls back to local SQLite.
+    """
+    try:
+        from nexafreight.config import get_settings
+        settings = get_settings()
+        url = settings.database_url
+        if url.startswith("postgresql") or url.startswith("postgres"):
+            # Convert async URL to sync: postgresql+asyncpg -> postgresql+psycopg2
+            sync_url = url.replace("+asyncpg", "+psycopg2")
+            return sqlalchemy.create_engine(sync_url)
+    except Exception:
+        pass
+    # Fallback: local SQLite (original behavior)
     uri = f"sqlite:///{Path(db_path).as_posix()}?mode=ro"
     return sqlalchemy.create_engine(uri, connect_args={"uri": True})
 

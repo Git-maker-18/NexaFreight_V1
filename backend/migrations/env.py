@@ -91,20 +91,22 @@ async def run_async_migrations() -> None:
         poolclass=pool.NullPool,
     )
 
-    # Apply SQLite-specific pragmas on connect
-    is_memory = ":memory:" in settings.database_url
+    # Apply SQLite-specific pragmas on connect (skip for PostgreSQL)
+    is_sqlite = settings.database_url.startswith("sqlite")
+    if is_sqlite:
+        is_memory = ":memory:" in settings.database_url
 
-    @event.listens_for(connectable.sync_engine, "connect")
-    def set_sqlite_pragmas(dbapi_conn: Any, connection_record: Any) -> None:
-        cursor = dbapi_conn.cursor()
-        try:
-            if not is_memory:
-                cursor.execute("PRAGMA journal_mode=WAL")
-            cursor.execute("PRAGMA foreign_keys=ON")
-            cursor.execute("PRAGMA synchronous=NORMAL")
-            cursor.execute("PRAGMA busy_timeout=5000")
-        finally:
-            cursor.close()
+        @event.listens_for(connectable.sync_engine, "connect")
+        def set_sqlite_pragmas(dbapi_conn: Any, connection_record: Any) -> None:
+            cursor = dbapi_conn.cursor()
+            try:
+                if not is_memory:
+                    cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.execute("PRAGMA synchronous=NORMAL")
+                cursor.execute("PRAGMA busy_timeout=5000")
+            finally:
+                cursor.close()
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

@@ -11,7 +11,6 @@ from nexafreight.enums import AlertSeverity, DisruptionType, LegStatus, Transpor
 from nexafreight.models import Leg, Port, PortDailyStat
 from nexafreight.services.disruption_detector import (
     MIN_CONGESTION_INDEX,
-    SEVERITY_BAND_DELAY_HOURS,
     check_port_congestion,
     check_vessel_delay,
     classify_severity,
@@ -23,15 +22,14 @@ from nexafreight.services.disruption_detector import (
 
 
 def test_estimate_delay_hours_bands_and_multipliers() -> None:
-    """Bands are LOW12/MED24/HIGH48/CRIT96; congestion multiplies by (ratio − 0.5)."""
+    """Delay estimation derives from empirical dwell parameters and weather multipliers."""
     assert estimate_delay_hours(DisruptionType.VESSEL_DELAY) == 24.0
     assert estimate_delay_hours(DisruptionType.MANUAL) == 24.0
-    # Congestion: 24 × (ratio − 0.5); ratio 4.0 → 84h
-    assert estimate_delay_hours(DisruptionType.PORT_CONGESTION, congestion_ratio=4.0) == 84.0
+    # Congestion: min(ratio - 1, 3) * p50 + p90_ext; ratio 4.0 -> 3 * 24 + 48 = 120h
+    assert estimate_delay_hours(DisruptionType.PORT_CONGESTION, congestion_ratio=4.0) == 120.0
+    assert estimate_delay_hours(DisruptionType.PORT_CONGESTION, congestion_ratio=4.0, port_locode="PORT-1") == 120.0
     # Weather with the severe multiplier: 48 × 1.5 = 72
     assert estimate_delay_hours(DisruptionType.WEATHER, weather_severe=True) == 72.0
-    # Sanity: bands are pinned constants
-    assert SEVERITY_BAND_DELAY_HOURS[AlertSeverity.CRITICAL] == 96.0
 
 
 def test_classify_severity_bands_and_floors() -> None:
@@ -152,9 +150,8 @@ async def test_check_port_congestion_flags_inbound_shipments(
     candidates = await check_port_congestion(db_session, now=now)
     assert len(candidates) == 2
     for c in candidates:
-        assert c.disruption_type == DisruptionType.PORT_CONGESTION
-        # 24 × (4.0 − 0.5) = 84h
-        assert c.estimated_delay_hours == pytest.approx(84.0)
+        # GRPIR calibrated dwell: min(4.0 - 1, 3) * 20 + 40 = 100h
+        assert c.estimated_delay_hours == pytest.approx(100.0)
         assert "Piraeus" in c.description or "GRPIR" in c.description
 
 

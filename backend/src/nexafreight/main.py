@@ -22,6 +22,7 @@ from nexafreight.logging import configure_logging
 from nexafreight.ml.registry import ModelRegistry
 from nexafreight.workers.ais_listener import get_position_tracker, get_worker
 from nexafreight.workers.position_interpolator import get_interpolator_worker
+from nexafreight.core.params import refresh_parameters
 
 email_validator.TEST_ENVIRONMENT = True
 email_validator.SPECIAL_USE_DOMAIN_NAMES = []
@@ -76,6 +77,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.error(f"Database connectivity check failed: {e}")
         raise RuntimeError(f"Cannot connect to database: {e}") from e
+
+    # Refresh parameters cache
+    try:
+        from nexafreight.database import get_session_factory
+        session_factory = get_session_factory()
+        async with session_factory() as session:
+            await refresh_parameters(session)
+    except Exception as exc:
+        logger.error(f"Failed to refresh parameter cache: {exc}", exc_info=True)
+        raise RuntimeError(f"Cannot load parameters: {exc}") from exc
 
     # Initialize position tracker singleton and start AIS listener (T-029).
     try:

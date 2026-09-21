@@ -68,6 +68,14 @@ async def test_all_models_registered_in_metadata():
         "corridor_alternatives",
         "decisions",
         "audit_logs",
+        "parameter_policy",
+        "parameter_empirical",
+        "network_nodes",
+        "network_edges",
+        "edge_schedules",
+        "transshipment_links",
+        "route_plans",
+        "route_legs",
     }
     # Import models to populate metadata
     import nexafreight.models  # noqa: F401

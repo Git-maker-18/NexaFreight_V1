@@ -52,23 +52,21 @@ from nexafreight.models import (
 )
 from nexafreight.services.reroute_engine import RerouteOption, generate_options
 
+from nexafreight.core import params
+
 logger = logging.getLogger(__name__)
 
-#: Planning speeds used to schedule replacement legs (km/h).
-MODE_SPEED_KMH: dict[str, float] = {
-    "SEA": 41.0,
-    "AIR": 800.0,
-    "ROAD": 70.0,
-    "RAIL": 60.0,
-}
+SUPPORTED_MODES: set[str] = {"SEA", "AIR", "ROAD", "RAIL"}
 
-#: Distance inflation per mode (great-circle → real route).
-MODE_CIRCUITY: dict[str, float] = {
-    "SEA": 1.15,
-    "AIR": 1.05,
-    "ROAD": 1.20,
-    "RAIL": 1.10,
-}
+
+def get_mode_speed(mode: str) -> float:
+    """Return effective speed for mode via parameters."""
+    return params.get_float(f"mode.speed.{mode.lower()}")
+
+
+def get_mode_circuity(mode: str) -> float:
+    """Return circuity multiplier for mode via parameters."""
+    return params.get_float(f"mode.circuity.{mode.lower()}")
 
 #: Template sentinel for the shipment's final destination.
 DESTINATION_SENTINEL = "DESTINATION"
@@ -95,7 +93,7 @@ def routed_distance_km(origin: Location, destination: Location, mode: str) -> fl
     gc = haversine_km(
         origin.latitude, origin.longitude, destination.latitude, destination.longitude
     )
-    return gc * MODE_CIRCUITY.get(mode, MODE_CIRCUITY["SEA"])
+    return gc * get_mode_circuity(mode)
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +163,7 @@ async def _create_new_legs(
     for idx, tpl in enumerate(template_legs):
         is_final = idx == len(template_legs) - 1
         mode = str(tpl["mode"]).upper()
-        if mode not in MODE_SPEED_KMH:
+        if mode not in SUPPORTED_MODES:
             raise ValidationError(f"Unsupported transport mode in template: {mode!r}")
 
         to_locode = tpl.get("to")
@@ -180,7 +178,8 @@ async def _create_new_legs(
                 raise ResourceNotFoundError("Location", str(to_locode))
 
         distance = routed_distance_km(cursor, to_loc, mode)
-        duration_hours = distance / MODE_SPEED_KMH[mode]
+        speed = get_mode_speed(mode)
+        duration_hours = (distance / speed) if speed > 0 else 0.0
         co2 = calculate_co2_kg(distance, weight_t, mode)
 
         seq += 1

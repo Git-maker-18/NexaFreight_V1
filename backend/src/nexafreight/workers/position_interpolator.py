@@ -68,7 +68,7 @@ from datetime import UTC, datetime, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import delete, select
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from nexafreight.database import dialect_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from nexafreight.adapters.protocols import AssetPosition, Provenance
@@ -435,7 +435,7 @@ async def _write_position(
                 else str(Provenance.SIMULATED)
             )
             stmt = (
-                sqlite_insert(PositionReport)
+                dialect_insert(PositionReport)
                 .values(
                     leg_id=leg_id,
                     asset_type=asset_type_val,

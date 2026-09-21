@@ -15,6 +15,8 @@ import {
   type ShipmentPredictResponse,
 } from "@/lib/nexafreight";
 import ProvenanceBadge from "./ProvenanceBadge";
+import RouteAlternativesPanel from "./RouteAlternativesPanel";
+
 
 interface ShipmentInspectorPanelProps {
   shipmentId: string | null;
@@ -391,8 +393,21 @@ export default function ShipmentInspectorPanel({
               </ul>
             </div>
           )}
+
+          {/* ─── Route alternatives (multimodal planner) ─── */}
+          <section
+            aria-label="Route alternatives"
+            style={{ borderTop: '1px solid rgba(148,163,184,0.12)', paddingTop: 12 }}
+          >
+            <RouteAlternativesPanel
+              shipmentId={shipmentId}
+              refreshKey={refreshKey}
+              showTabs
+            />
+          </section>
         </div>
       )}
     </div>
   );
 }
+

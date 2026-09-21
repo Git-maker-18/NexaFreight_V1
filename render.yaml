@@ -1,0 +1,33 @@
+# Render.com Blueprint — NexaFreight Backend
+# https://render.com/docs/blueprint-spec
+#
+# One-click deploy: connect your GitHub repo and Render reads this file.
+
+services:
+  - type: web
+    name: nexafreight-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: oregon
+    envVars:
+      - key: DATABASE_URL
+        sync: false            # set manually in Render dashboard
+      - key: JWT_SECRET
+        generateValue: true    # Render auto-generates a secure random value
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: ENABLE_AIS_LISTENER
+        value: "true"
+      - key: ENABLE_POSITION_INTERPOLATOR
+        value: "true"
+      - key: USE_LIVE_AIS
+        value: "false"
+      - key: ALLOWED_ORIGINS
+        sync: false            # set to your Vercel URL, e.g. https://nexafreight.vercel.app
+    healthCheckPath: /health

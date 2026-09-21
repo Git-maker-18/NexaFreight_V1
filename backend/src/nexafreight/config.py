@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False)
 
     # --- Database ---
+    # If DATABASE_URL is set (e.g. postgresql+asyncpg://...), it takes
+    # precedence.  Otherwise the URL is built from DATABASE_PATH (SQLite).
+    database_url_override: str | None = Field(
+        default=None,
+        validation_alias="DATABASE_URL",
+        description="Full async database URL.  Set for cloud Postgres; leave unset for local SQLite.",
+    )
     database_path: Path = Field(default=Path("./data/nexafreight.db"))
     test_database_path: Path = Field(default=Path(":memory:"))  # or ./data/test.db
 
@@ -90,7 +97,10 @@ class Settings(BaseSettings):
     # --- Computed Properties ---
     @property
     def database_url(self) -> str:
-        """Async SQLite URL for main database."""
+        """Async database URL.  Prefers DATABASE_URL env; falls back to SQLite."""
+        if self.database_url_override:
+            return self.database_url_override
+        # Local SQLite fallback
         if self.database_path == Path(":memory:"):
             return "sqlite+aiosqlite:///:memory:"
         posix = self.database_path.as_posix()
