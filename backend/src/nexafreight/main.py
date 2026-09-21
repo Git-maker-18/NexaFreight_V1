@@ -16,7 +16,12 @@ from nexafreight.api.router import api_router
 from nexafreight.api.routes import health
 from nexafreight.api.routes.health import HealthResponse
 from nexafreight.config import Settings, ensure_directories, get_settings
-from nexafreight.database import create_engine, dispose_engine, get_engine
+from nexafreight.database import (
+    create_engine,
+    create_session_factory,
+    dispose_engine,
+    get_engine,
+)
 from nexafreight.exceptions import NexaFreightException
 from nexafreight.logging import configure_logging
 from nexafreight.ml.registry import ModelRegistry
@@ -78,14 +83,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error(f"Database connectivity check failed: {e}")
         raise RuntimeError(f"Cannot connect to database: {e}") from e
 
-    # Refresh parameters cache
+    # Refresh parameters cache using the engine selected for this app instance.
     try:
-        from nexafreight.database import get_session_factory
-        session_factory = get_session_factory()
+        session_factory = create_session_factory(engine)
         async with session_factory() as session:
             await refresh_parameters(session)
     except Exception as exc:
-        logger.error(f"Failed to refresh parameter cache: {exc}", exc_info=True)
+        logger.error(
+            "Failed to refresh parameter cache: %s", exc, exc_info=True,
+        )
         raise RuntimeError(f"Cannot load parameters: {exc}") from exc
 
     # Initialize position tracker singleton and start AIS listener (T-029).
@@ -142,11 +148,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             )
 
             scheduler = AsyncIOScheduler()
-            session_factory = get_session_factory()
+            worker_session_factory = (
+                create_session_factory(engine) if engine is not None else get_session_factory()
+            )
             if settings.enable_disruption_detector:
-                disruption_detector_worker.register_jobs(scheduler, session_factory)
+                disruption_detector_worker.register_jobs(scheduler, worker_session_factory)
             if settings.enable_sla_checker:
-                sla_monitor_worker.register_jobs(scheduler, session_factory)
+                sla_monitor_worker.register_jobs(scheduler, worker_session_factory)
             scheduler.start()
             app.state.operational_scheduler = scheduler
             logger.info(

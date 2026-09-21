@@ -21,13 +21,18 @@ from nexafreight.main import create_app
 def run_alembic_upgrade(db_path: Path) -> subprocess.CompletedProcess[str]:
     """Run alembic upgrade head against a specific database file."""
     env = {**os.environ, "DATABASE_PATH": str(db_path)}
-    return subprocess.run(
+    result = subprocess.run(
         [sys.executable, "-m", "alembic", "upgrade", "head"],
         capture_output=True,
         text=True,
         env=env,
         check=False,
     )
+    assert result.returncode == 0, (
+        f"Migration failed:\nstdout:\n{result.stdout}\n"
+        f"stderr:\n{result.stderr}"
+    )
+    return result
 
 
 @pytest.fixture
@@ -64,7 +69,8 @@ def test_app_startup_succeeds_with_valid_database(test_settings: Settings) -> No
 
 def test_health_check_returns_success(test_settings: Settings) -> None:
     """Health check endpoint reports healthy status."""
-    run_alembic_upgrade(test_settings.database_path)
+    result = run_alembic_upgrade(test_settings.database_path)
+    assert result.returncode == 0, f"Migration failed: {result.stderr}"
 
     app = create_app(test_settings)
 
@@ -97,7 +103,8 @@ def test_health_check_fails_with_unreachable_database() -> None:
 
 def test_cors_headers_present_for_allowed_origin(test_settings: Settings) -> None:
     """CORS headers reflect configured allowed origins."""
-    run_alembic_upgrade(test_settings.database_path)
+    result = run_alembic_upgrade(test_settings.database_path)
+    assert result.returncode == 0, f"Migration failed: {result.stderr}"
 
     app = create_app(test_settings)
 
@@ -113,7 +120,8 @@ def test_cors_headers_present_for_allowed_origin(test_settings: Settings) -> Non
 
 def test_cors_headers_absent_for_disallowed_origin(test_settings: Settings) -> None:
     """CORS headers are restrictive for non-allowed origins."""
-    run_alembic_upgrade(test_settings.database_path)
+    result = run_alembic_upgrade(test_settings.database_path)
+    assert result.returncode == 0, f"Migration failed: {result.stderr}"
 
     app = create_app(test_settings)
 
@@ -128,7 +136,8 @@ def test_cors_headers_absent_for_disallowed_origin(test_settings: Settings) -> N
 
 def test_custom_exception_handler_returns_clean_json(test_settings: Settings) -> None:
     """Custom application exceptions produce clean JSON responses."""
-    run_alembic_upgrade(test_settings.database_path)
+    result = run_alembic_upgrade(test_settings.database_path)
+    assert result.returncode == 0, f"Migration failed: {result.stderr}"
 
     app = create_app(test_settings)
 
@@ -154,7 +163,8 @@ def test_custom_exception_handler_returns_clean_json(test_settings: Settings) ->
 
 def test_generic_exception_handler_returns_safe_error(test_settings: Settings) -> None:
     """Unhandled exceptions produce safe, generic error responses."""
-    run_alembic_upgrade(test_settings.database_path)
+    result = run_alembic_upgrade(test_settings.database_path)
+    assert result.returncode == 0, f"Migration failed: {result.stderr}"
 
     app = create_app(test_settings)
 
@@ -176,7 +186,8 @@ def test_generic_exception_handler_returns_safe_error(test_settings: Settings) -
 
 def test_lifespan_disposes_engine_on_shutdown(test_settings: Settings) -> None:
     """Lifespan correctly disposes engine during shutdown."""
-    run_alembic_upgrade(test_settings.database_path)
+    result = run_alembic_upgrade(test_settings.database_path)
+    assert result.returncode == 0, f"Migration failed: {result.stderr}"
 
     app = create_app(test_settings)
 
