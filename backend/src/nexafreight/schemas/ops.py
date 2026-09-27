@@ -189,12 +189,23 @@ class AnalyticsFinancialRow(BaseModel):
     margin_pct: float | None = None
 
 
+class ProvenanceBucket(BaseModel):
+    """Per-provenance rollup (E12: bake vs runtime made visible)."""
+
+    shipments: int = 0
+    revenue_usd: float = 0.0
+    realized_cost_usd: float = 0.0
+    pending_sla_est_usd: float = 0.0
+    pending_demurrage_est_usd: float = 0.0
+
+
 class AnalyticsFinancialResponse(BaseModel):
     day: WindowSliceOut
     week: WindowSliceOut
     month: WindowSliceOut
     rows: list[AnalyticsFinancialRow] = Field(default_factory=list)
     provenance: str = "DERIVED"
+    by_provenance: dict[str, ProvenanceBucket] = Field(default_factory=dict)
 
 
 class AnalyticsSlaRow(BaseModel):

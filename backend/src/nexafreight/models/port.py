@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, Float, ForeignKey, UniqueConstraint
+from sqlalchemy import Date, Float, ForeignKey, UniqueConstraint, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from nexafreight.models.base import Base
@@ -64,6 +64,7 @@ class PortDailyStat(Base):
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     date = synonym("stat_date")
     congestion_index: Mapped[float] = mapped_column(Float, nullable=False)
+    source: Mapped[str] = mapped_column(String(40), nullable=False, server_default="SIMULATED")
 
     # Relationships
     port: Mapped[Port] = relationship("Port", back_populates="daily_stats")

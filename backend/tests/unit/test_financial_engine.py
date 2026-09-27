@@ -25,7 +25,14 @@ from nexafreight.services.financial_engine import (
     calculate_order_financial_impact,
     calculate_shipment_financial_impact,
     calculate_sla_penalty,
+    calculate_sla_penalty_weekly,
     generate_pnl_snapshot,
+)
+from nexafreight.services.insurance import (
+    INSURED_VALUE_UPLIFT,
+    INSURANCE_PCT_BY_MODE,
+    calculate_insurance_delta,
+    calculate_insurance_premium,
 )
 
 
@@ -60,7 +67,57 @@ def test_calculate_sla_penalty_cap_boundary() -> None:
     assert calculate_sla_penalty(20000.0, 0.05, 3) == 2000.0
 
 
-def test_calculate_demurrage_within_free_days() -> None:
+def test_calculate_sla_penalty_weekly_ld_norms() -> None:
+    """Weekly LD norms: 0.5%/week, any part-week rounds up, cap 10%."""
+    pct, cap = 0.005, 0.10
+    # 6 days late -> 1 week: 20000 * 0.005 * 1 = 100
+    assert calculate_sla_penalty_weekly(20000.0, pct, 6, cap_pct=cap) == 100.0
+    # 8 days late -> 2 weeks (round up): 20000 * 0.005 * 2 = 200
+    assert calculate_sla_penalty_weekly(20000.0, pct, 8, cap_pct=cap) == 200.0
+    # 140 days late -> 20 weeks: uncapped 2000 == 10% cap of 2000 exactly
+    assert calculate_sla_penalty_weekly(20000.0, pct, 140, cap_pct=cap) == 2000.0
+    # 141 days -> 21 weeks: uncapped 2100 > cap
+    assert calculate_sla_penalty_weekly(20000.0, pct, 141, cap_pct=cap) == 2000.0
+    # on time / early
+    assert calculate_sla_penalty_weekly(20000.0, pct, 0, cap_pct=cap) == 0.0
+    assert calculate_sla_penalty_weekly(20000.0, pct, -5, cap_pct=cap) == 0.0
+
+
+def test_insurance_premium_by_mode() -> None:
+    """Premium = cargo value x 110% uplift x mode pct (ocean 0.3%, air 0.75%)."""
+    # SEA: 10000 * 1.10 * 0.003 = 33.0
+    assert calculate_insurance_premium(10_000.0, "SEA") == pytest.approx(33.0)
+    # AIR: 10000 * 1.10 * 0.0075 = 82.5
+    assert calculate_insurance_premium(10_000.0, "AIR") == pytest.approx(82.5)
+    # ROAD: 10000 * 1.10 * 0.005 = 55.0
+    assert calculate_insurance_premium(10_000.0, "ROAD") == pytest.approx(55.0)
+    # RAIL shares the road rate (documented, no separate public anchor)
+    assert calculate_insurance_premium(10_000.0, "RAIL") == pytest.approx(55.0)
+    # TransportMode enum accepted
+    assert calculate_insurance_premium(10_000.0, "SEA") == calculate_insurance_premium(10_000.0, "SEA")
+
+
+def test_insurance_delta_only_charges_the_difference() -> None:
+    """Modal shift decision uses the premium DELTA, not the full premium."""
+    # SEA -> AIR: 10000 * 1.10 * (0.0075 - 0.003) = 49.5
+    assert calculate_insurance_delta(10_000.0, "SEA", "AIR") == pytest.approx(49.5)
+    # same mode: no delta
+    assert calculate_insurance_delta(10_000.0, "SEA", "SEA") == 0.0
+    # reverse shift refunds the premium class difference
+    assert calculate_insurance_delta(10_000.0, "AIR", "SEA") == pytest.approx(-49.5)
+
+
+def test_insurance_constants_match_registry_anchors() -> None:
+    """Module constants mirror the params registry defaults (Reg. doc SS8)."""
+    from nexafreight.core.params import FALLBACK_DEFAULTS
+
+    assert INSURANCE_PCT_BY_MODE["SEA"] == FALLBACK_DEFAULTS["insurance.pct_of_value.sea"]
+    assert INSURANCE_PCT_BY_MODE["AIR"] == FALLBACK_DEFAULTS["insurance.pct_of_value.air"]
+    assert INSURANCE_PCT_BY_MODE["ROAD"] == FALLBACK_DEFAULTS["insurance.pct_of_value.road"]
+    assert INSURED_VALUE_UPLIFT == FALLBACK_DEFAULTS["insurance.insured_value_uplift"]
+
+
+def test_demurrage_within_free_days() -> None:
     """No demurrage when within free days."""
     result = calculate_demurrage(extra_days=2, free_days=5, daily_rate=100.0)
     assert result == 0.0
@@ -107,26 +164,30 @@ def test_calculate_carbon_cost_negative_delta() -> None:
 
 def test_calculate_freight_cost_by_mode() -> None:
     """Nominal freight cost = rate × distance × weight, per mode."""
-    # AIR: 1.8 × 5000 × 28 = 252000
-    assert calculate_freight_cost(5000.0, 28.0, "AIR") == 252_000.0
-    # SEA: 0.02 × 5000 × 28 = 2800
-    assert calculate_freight_cost(5000.0, 28.0, "SEA") == 2_800.0
+    # AIR: 0.9 × 5000 × 28 = 126000  (NCAER Rs72/tkm anchor / fx 88)
+    assert calculate_freight_cost(5000.0, 28.0, "AIR") == 126_000.0
+    # SEA: 0.012 × 5000 × 28 = 1680  (mainline INDUSTRY anchor)
+    assert calculate_freight_cost(5000.0, 28.0, "SEA") == 1_680.0
+    # ROAD: 0.0334 × 5000 × 28 = 4676  (Rs3.2/tkm bottom-up / fx 95.8)
+    assert calculate_freight_cost(5000.0, 28.0, "ROAD") == 4_676.0
+    # RAIL: 0.0146 × 5000 × 28 = 2044  (Rs1.4/tkm class-avg / fx 95.8)
+    assert calculate_freight_cost(5000.0, 28.0, "RAIL") == 2_044.0
     # Unknown mode falls back to SEA rate
-    assert calculate_freight_cost(5000.0, 28.0, "DRONE") == 2_800.0
+    assert calculate_freight_cost(5000.0, 28.0, "DRONE") == 1_680.0
 
 
 def test_calculate_co2_kg_by_mode() -> None:
     """kg CO2 = g/t-km × km × t / 1000."""
     # AIR: 500 × 5000 × 28 / 1000 = 70000 kg
     assert calculate_co2_kg(5000.0, 28.0, "AIR") == 70_000.0
-    # SEA: 6.5 × 5000 × 28 / 1000 = 910 kg
-    assert calculate_co2_kg(5000.0, 28.0, "SEA") == 910.0
+    # SEA: 8.0 × 5000 × 28 / 1000 = 1120 kg (GLEC band mid)
+    assert calculate_co2_kg(5000.0, 28.0, "SEA") == 1_120.0
 
 
 def test_calculate_co2_cost_uses_carbon_price() -> None:
     """Carbon price is $0.08/kg."""
     assert CARBON_COST_PER_KG == 0.08
-    assert calculate_co2_cost(910.0) == pytest.approx(72.8)
+    assert calculate_co2_cost(1_120.0) == pytest.approx(89.6)
 
 
 def test_calculate_order_financial_impact_full_scenario() -> None:

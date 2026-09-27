@@ -153,9 +153,10 @@ async def amain(args: argparse.Namespace) -> int:
     db_url = get_db_url()
     engine = create_async_engine(
         db_url,
-        connect_args={"check_same_thread": False, "timeout": 30},
+        connect_args=({"check_same_thread": False, "timeout": 30} if db_url.startswith("sqlite") else {}),
     )
-    event.listen(engine.sync_engine, "connect", _set_sqlite_pragmas)
+    if db_url.startswith("sqlite"):
+        event.listen(engine.sync_engine, "connect", _set_sqlite_pragmas)
     loc_tbl, vessels_tbl, legs_tbl = _resolve_tables()
 
     try:

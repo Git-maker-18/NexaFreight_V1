@@ -18,8 +18,8 @@
       }
     ]
   },
-  "trained_at": "2026-09-04T17:10:41.340708+00:00",
-  "git_sha": "74cc4ae",
+  "trained_at": "2026-09-26T18:20:33.847045+00:00",
+  "git_sha": "910bfa0",
   "target_column": "transit_delay_residual",
   "actual_days_column": "days_for_shipping_real",
   "scheduled_days_column": "scheduled_shipping_days",

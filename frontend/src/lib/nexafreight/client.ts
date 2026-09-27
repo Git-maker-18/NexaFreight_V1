@@ -94,7 +94,7 @@ interface FetchOptions {
   params?: Record<string, string | number | boolean | null | undefined>
 }
 
-async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promise<T> {
+export async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promise<T> {
   const { method = 'GET', body, auth = 'required', params } = opts
 
   // Build URL
@@ -415,6 +415,25 @@ export async function getDemandForecast(
 // Allows `import { nexaClient } from '…/client'` as an alternative to
 // importing individual functions.
 
+
+export interface ValidationMatrixResponse {
+  generated_at: string
+  all_ok: boolean
+  pass_count: number
+  total_count: number
+  static: import('@/lib/nexafreight/validation').ValidationCheck[]
+  artifact: import('@/lib/nexafreight/validation').ValidationCheck[]
+  skips: string[]
+}
+
+/** Task 17: live validation matrix (public endpoint, same impl as the CI gate). */
+export async function getValidationMatrix(): Promise<ValidationMatrixResponse> {
+  return apiFetch<ValidationMatrixResponse>('/api/health/validation', {
+    method: 'GET',
+    auth: 'none',
+  })
+}
+
 export const nexaClient = {
   setToken,
   clearToken,
@@ -634,4 +653,5 @@ Object.assign(nexaClient, {
   askCopilot,
   getShipmentPrediction,
   getShipmentFinancials,
+  getValidationMatrix,
 })

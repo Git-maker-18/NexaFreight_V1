@@ -52,6 +52,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
+from nexafreight.eval.forecast_benchmark import mase  # noqa: E402
 from nexafreight.ml.constants import (  # noqa: E402
     DATACO_CSV_PATH,
     DEMAND_FORECAST_HORIZON_WEEKS,
@@ -340,7 +341,7 @@ def evaluate_holdout(
     holdout: pd.DataFrame,
     horizon_weeks: int,
     prediction_level: int,
-) -> tuple[dict[str, float], float, float, float]:
+) -> tuple[dict[str, float], float, float, float, float]:
     """
     Generate point forecasts over the holdout horizon and compute MAPE per lane.
     Also computes a seasonal naive baseline WAPE for lift comparison.
@@ -360,9 +361,11 @@ def evaluate_holdout(
     sn_preds = _seasonal_naive_forecast(train, holdout)
 
     per_lane_mape: dict[str, float] = {}
+    per_lane_mase_list: list[float] = []
     weighted_actuals = 0.0
     weighted_errors = 0.0
     bl_weighted_errors = 0.0
+    pooled_denom = 0.0
 
     for uid, group in holdout.groupby(DEMAND_UNIQUE_ID_COL):
         pred_group = preds[preds[DEMAND_UNIQUE_ID_COL] == uid].copy()
@@ -372,6 +375,17 @@ def evaluate_holdout(
             continue
         predicted = pred_group.sort_values("ds")[point_col].to_numpy(dtype=float)[:n]
         actual = actual[:n]
+
+        t_group = train[train[DEMAND_UNIQUE_ID_COL] == uid].sort_values("ds")
+        y_train = t_group[DEMAND_TARGET_COLUMN].to_numpy(dtype=float)
+        try:
+            lane_mase = mase(y_train, actual, predicted, season_length=4)
+            per_lane_mase_list.append(lane_mase)
+            
+            lane_denom = float(np.mean(np.abs(y_train[4:] - y_train[:-4])))
+            pooled_denom += n * lane_denom
+        except ValueError:
+            pass
 
         mape = _mape(actual, predicted)
         if mape is not None:
@@ -389,6 +403,10 @@ def evaluate_holdout(
     )
     lift_pct = (1.0 - wape / baseline_wape) * 100 if baseline_wape > 0 else float("nan")
 
+    median_mase = float(np.median(per_lane_mase_list)) if per_lane_mase_list else float("nan")
+    pooled_mase = (weighted_errors / pooled_denom) if pooled_denom > 0 else float("nan")
+    lanes_le1 = sum(1 for v in per_lane_mase_list if v <= 1.0)
+
     log.info(
         "  Holdout — WAPE: %.1f%%  |  Baseline WAPE: %.1f%%  |  Lift: %+.1f%%  |  Lanes: %d",
         wape,
@@ -396,7 +414,8 @@ def evaluate_holdout(
         lift_pct,
         len(per_lane_mape),
     )
-    return per_lane_mape, wape, baseline_wape, lift_pct
+    lanes_mase_total = len(per_lane_mase_list)
+    return per_lane_mape, wape, baseline_wape, lift_pct, median_mase, pooled_mase, lanes_le1, lanes_mase_total
 
 
 # ============================================================================
@@ -600,7 +619,7 @@ def train(
     # Step 4: Evaluate holdout MAPE
     # ------------------------------------------------------------------
     log.info("Step 4/5 — Evaluating holdout MAPE (%d-week holdout) ...", holdout_weeks)
-    per_lane_mape, wape, baseline_wape, lift_pct = evaluate_holdout(
+    per_lane_mape, wape, baseline_wape, lift_pct, median_mase, pooled_mase, lanes_le1, lanes_mase_total = evaluate_holdout(
         sf_eval, train_df, holdout_df, holdout_weeks, DEMAND_PREDICTION_LEVEL
     )
 
@@ -706,6 +725,12 @@ def train(
             "best_5_lanes_mape": best5,
             "worst_5_lanes_mape": worst5,
         },
+        "forecast_instruments": {
+            "median_mase": round(median_mase, 4),
+            "pooled_mase": round(pooled_mase, 4),
+            "lanes_mase_le1": lanes_le1,
+            "lanes_total": lanes_mase_total
+        },
         "prediction_intervals": {
             "method": "ets_native",
             "fallback_method": "heuristic_15pct",
@@ -727,6 +752,22 @@ def train(
     _atomic_json(meta_path, metadata)
     log.info("  metadata.json → %s", meta_path)
 
+    # --- demand_forecast_benchmark.json ---
+    benchmark_artifact = {
+        "metrics": metadata["forecast_instruments"],
+        "split_sizes": {
+            "train_weeks_median": metadata["data"]["train_weeks"],
+            "holdout_weeks": metadata["data"]["holdout_weeks"],
+            "total_qualified_lanes": len(qualified_ids)
+        },
+        "sha256_first16": csv_hash,
+        "review_spec": "EVALUATION_REVIEW 2.1",
+        "timestamp": trained_at
+    }
+    benchmark_path = _PROJECT_ROOT / "eval" / "artifacts" / "demand_forecast_benchmark.json"
+    _atomic_json(benchmark_path, benchmark_artifact)
+    log.info("  demand_forecast_benchmark.json → %s", benchmark_path)
+
     # ------------------------------------------------------------------
     # Summary
     # ------------------------------------------------------------------
@@ -737,6 +778,10 @@ def train(
     print(sep)
     print(f"  Qualified lanes: {len(qualified_ids)} / {total_lanes}")
     print(f"  WAPE:            {wape:.1f}%")
+    print(f"REPORT > DEMAND MEDIAN MASE: {median_mase:.4f}")
+    print(f"REPORT > DEMAND MASE pooled: {pooled_mase:.4f}")
+    pct_le1 = (lanes_le1 / lanes_mase_total * 100) if lanes_mase_total > 0 else 0.0
+    print(f"REPORT > DEMAND lanes MASE<=1: {lanes_le1} of {lanes_mase_total} ({pct_le1:.1f}%)")
     print(
         f"  Median MAPE:     {float(np.median(list(per_lane_mape.values()))):.1f}%"
         if per_lane_mape

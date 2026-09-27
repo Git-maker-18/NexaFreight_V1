@@ -1,0 +1,37 @@
+{
+  "generated_at": "2026-09-24T11:17:33.436005+00:00",
+  "mode": "B",
+  "source_rows": 79,
+  "decision": "self_check_ok",
+  "healthy": true,
+  "checks": [
+    {
+      "name": "artifact_loads",
+      "ok": true
+    },
+    {
+      "name": "schema_matches_feature_schema",
+      "ok": true
+    },
+    {
+      "name": "parquet_has_features",
+      "ok": true
+    },
+    {
+      "name": "serves_rearranged_monotone",
+      "ok": true,
+      "monotonicity": 1.0
+    },
+    {
+      "name": "raw_monotonicity_matches_metadata",
+      "ok": true,
+      "served": 0.98,
+      "recorded": 0.9345
+    },
+    {
+      "name": "version_consistent",
+      "ok": true
+    }
+  ],
+  "served_rows": 200
+}

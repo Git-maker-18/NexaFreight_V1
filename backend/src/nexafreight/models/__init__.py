@@ -10,12 +10,18 @@ from nexafreight.models.audit import AuditLog
 from nexafreight.models.base import Base
 from nexafreight.models.corridor import CorridorAlternative
 from nexafreight.models.decision import Decision
+from nexafreight.models.decision_outcome import DecisionOutcome
+from nexafreight.models.external_event import ExternalEvent
+from nexafreight.models.party import Party
 from nexafreight.models.disruption import Disruption
 from nexafreight.models.leg import Leg
 from nexafreight.models.location import Location
+from nexafreight.models.network import EdgeSchedule, NetworkEdge, NetworkNode, TransshipmentLink
 from nexafreight.models.order import Order, OrderItem
+from nexafreight.models.parameter import ParameterEmpirical, ParameterPolicy
 from nexafreight.models.port import Port, PortDailyStat
 from nexafreight.models.position import PositionReport
+from nexafreight.models.route_plan import RouteLegRecord, RoutePlanRecord
 from nexafreight.models.shipment import Shipment
 from nexafreight.models.user import User
 from nexafreight.models.vessel import Vessel
@@ -36,5 +42,17 @@ __all__ = [
     "Alert",
     "CorridorAlternative",
     "Decision",
+    "DecisionOutcome",
+    "ExternalEvent",
+    "Party",
     "AuditLog",
+    "ParameterPolicy",
+    "ParameterEmpirical",
+    "NetworkNode",
+    "NetworkEdge",
+    "EdgeSchedule",
+    "TransshipmentLink",
+    "RoutePlanRecord",
+    "RouteLegRecord",
 ]
+

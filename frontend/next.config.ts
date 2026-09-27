@@ -1,4 +1,7 @@
+// LAN users set NEXT_PUBLIC_BACKEND_ORIGIN in frontend/.env.local.
 import type { NextConfig } from "next";
+
+const backendOrigin = process.env.NEXT_PUBLIC_BACKEND_ORIGIN || 'http://localhost:8000';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
@@ -11,16 +14,12 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  images: {
-    remotePatterns: [
-      { protocol: 'https', hostname: '**' },
-    ],
-  },
   async rewrites() {
+    const backendUrl = process.env.NEXA_BACKEND_URL || 'http://127.0.0.1:8000';
     return [
       {
         source: '/api/nexa/:path*',
-        destination: 'http://127.0.0.1:8000/api/:path*',
+        destination: `${backendUrl}/api/:path*`,
       },
     ];
   },
@@ -31,7 +30,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self' 'unsafe-inline' 'unsafe-eval' http: https: ws: wss: data: blob:; connect-src 'self' http://localhost:8000 http://127.0.0.1:8000 http://10.211.140.34:8000 http: https: ws: wss: data: blob:;",
+            value: `default-src 'self' 'unsafe-inline' 'unsafe-eval' http: https: ws: wss: data: blob:; connect-src 'self' http://localhost:8000 http://127.0.0.1:8000 ${backendOrigin} ws: wss: data: blob:;`,
           },
           { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },

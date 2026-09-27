@@ -35,6 +35,7 @@ from nexafreight.ml.constants import (
     MISSING_SENTINEL,
     QUANTILE_KEYS,
 )
+from nexafreight.ml.feature_contract import encode_frame
 
 # ---------------------------------------------------------------------------
 # Constants local to inference
@@ -201,51 +202,24 @@ class EtaQuantileModel:
     # Internal encoding helpers
     # ------------------------------------------------------------------
     def _encode_single(self, row: dict[str, Any]) -> pd.DataFrame:
-        """Encode a single dict row into a 1-row DataFrame."""
-        df = pd.DataFrame([row])
-
-        for col in self.features:
-            if col not in df.columns:
-                df[col] = np.nan
-
-        df = df[self.features].copy()
-
-        for col in self.cat_cols:
-            raw_val = df[col].iloc[0]
-            str_val = str(raw_val) if pd.notna(raw_val) else MISSING_SENTINEL
-            if col in self.cat_levels:
-                known = self.cat_levels[col]
-                if str_val not in known:
-                    str_val = MISSING_SENTINEL
-                df[col] = pd.Categorical(
-                    [str_val],
-                    categories=known + [MISSING_SENTINEL],
-                )
-            else:
-                df[col] = pd.Categorical([str_val])
-
-        for col in self.num_cols:
-            df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
-
-        return df
+        """Encode a single dict row into a 1-row DataFrame (contract path)."""
+        return encode_frame(
+            pd.DataFrame([row]),
+            feature_columns=list(self.features),
+            cat_cols=list(self.cat_cols),
+            num_cols=list(self.num_cols),
+            cat_levels=self.cat_levels,
+        )
 
     def _encode_frame(self, frame: pd.DataFrame) -> pd.DataFrame:
-        """Encode a multi-row DataFrame."""
-        df = frame[self.features].copy()
-
-        for col in self.cat_cols:
-            vals = df[col].fillna(MISSING_SENTINEL).astype(str)
-            if col in self.cat_levels:
-                known = self.cat_levels[col]
-                vals = vals.where(vals.isin(known), MISSING_SENTINEL)
-                df[col] = pd.Categorical(vals, categories=known + [MISSING_SENTINEL])
-            else:
-                df[col] = pd.Categorical(vals)
-
-        for col in self.num_cols:
-            df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
-
-        return df
+        """Encode a multi-row DataFrame (contract path - E10: same code as serve)."""
+        return encode_frame(
+            frame,
+            feature_columns=list(self.features),
+            cat_cols=list(self.cat_cols),
+            num_cols=list(self.num_cols),
+            cat_levels=self.cat_levels,
+        )
 
     # ------------------------------------------------------------------
     # Raw prediction + monotonic rearrangement

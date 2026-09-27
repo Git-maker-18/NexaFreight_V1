@@ -17,6 +17,22 @@ describe('useSSEPositions helper functions', () => {
       const url = buildSSEUrl('http://localhost:8000', 'jwt-token-123')
       expect(url).toBe('http://localhost:8000/api/map/positions/stream?token=jwt-token-123')
     })
+
+    it('path-prefix apiUrl builds a same-origin proxied URL (reverse-proxy deployments)', () => {
+      // node env: stub the browser global the hook reads
+      ;(globalThis as Record<string, unknown>).window = {
+        location: { origin: 'https://preview.example.app' },
+      }
+      try {
+        const url = buildSSEUrl('/api/nexa', 'jwt-token-123')
+        // rewrite: /api/nexa/map/positions/stream -> backend /api/map/positions/stream
+        expect(url).toBe(
+          'https://preview.example.app/api/nexa/map/positions/stream?token=jwt-token-123'
+        )
+      } finally {
+        delete (globalThis as Record<string, unknown>).window
+      }
+    })
   })
 
   describe('parsePositionPayload', () => {

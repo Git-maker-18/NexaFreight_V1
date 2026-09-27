@@ -218,6 +218,7 @@ async def seed_test_data(db_session: AsyncSession) -> dict[str, Any]:
     # Create shipment
     now = datetime.now(UTC)
     shipment = Shipment(
+        provenance=Provenance.SIMULATED,
         origin_id=origin.id,
         destination_id=dest.id,
         primary_transport_mode=TransportMode.SEA,

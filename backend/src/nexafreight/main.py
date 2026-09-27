@@ -15,13 +15,20 @@ from sqlalchemy import text
 from nexafreight.api.router import api_router
 from nexafreight.api.routes import health
 from nexafreight.api.routes.health import HealthResponse
+from nexafreight.api.routes.internal import router as internal_router
 from nexafreight.config import Settings, ensure_directories, get_settings
-from nexafreight.database import create_engine, dispose_engine, get_engine
+from nexafreight.database import (
+    create_engine,
+    create_session_factory,
+    dispose_engine,
+    get_engine,
+)
 from nexafreight.exceptions import NexaFreightException
 from nexafreight.logging import configure_logging
 from nexafreight.ml.registry import ModelRegistry
 from nexafreight.workers.ais_listener import get_position_tracker, get_worker
 from nexafreight.workers.position_interpolator import get_interpolator_worker
+from nexafreight.core.params import refresh_parameters
 
 email_validator.TEST_ENVIRONMENT = True
 email_validator.SPECIAL_USE_DOMAIN_NAMES = []
@@ -77,6 +84,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error(f"Database connectivity check failed: {e}")
         raise RuntimeError(f"Cannot connect to database: {e}") from e
 
+    # Refresh parameters cache using the engine selected for this app instance.
+    try:
+        session_factory = create_session_factory(engine)
+        async with session_factory() as session:
+            await refresh_parameters(session)
+    except Exception as exc:
+        logger.error(
+            "Failed to refresh parameter cache: %s", exc, exc_info=True,
+        )
+        raise RuntimeError(f"Cannot load parameters: {exc}") from exc
+
     # Initialize position tracker singleton and start AIS listener (T-029).
     try:
         tracker = get_position_tracker()
@@ -131,11 +149,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             )
 
             scheduler = AsyncIOScheduler()
-            session_factory = get_session_factory()
+            worker_session_factory = (
+                create_session_factory(engine) if engine is not None else get_session_factory()
+            )
             if settings.enable_disruption_detector:
-                disruption_detector_worker.register_jobs(scheduler, session_factory)
+                disruption_detector_worker.register_jobs(scheduler, worker_session_factory)
             if settings.enable_sla_checker:
-                sla_monitor_worker.register_jobs(scheduler, session_factory)
+                sla_monitor_worker.register_jobs(scheduler, worker_session_factory)
             scheduler.start()
             app.state.operational_scheduler = scheduler
             logger.info(
@@ -285,6 +305,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Include central API router
     app.include_router(api_router, prefix="/api")
+    app.include_router(internal_router)
 
     # Top-level health check endpoint for /health and /health/
     @app.get(
@@ -303,6 +324,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         health_resp: HealthResponse = Depends(health.health_check),
     ) -> HealthResponse:
         return health_resp
+
+    @app.get("/healthz", tags=["health"], include_in_schema=False)
+    async def healthz_check() -> dict[str, str]:
+        """Liveness probe: no database touch."""
+        return {"status": "ok"}
+
+    @app.get("/readyz", tags=["health"], include_in_schema=False)
+    async def readyz_check() -> JSONResponse:
+        """Readiness probe: checks DB connection with a 2s timeout."""
+        import asyncio
+        from nexafreight.database import get_engine
+        try:
+            engine = get_engine()
+            async with asyncio.timeout(2.0):
+                async with engine.connect() as conn:
+                    await conn.execute(text("SELECT 1"))
+            return JSONResponse(status_code=200, content={"status": "ready"})
+        except Exception as e:
+            logger.error(f"Readiness check failed: {e}")
+            return JSONResponse(status_code=503, content={"status": "not_ready"})
 
     return app
 

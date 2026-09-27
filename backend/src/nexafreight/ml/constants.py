@@ -32,7 +32,7 @@ MODELS_DIR = _PROJECT_ROOT / "models"
 
 DB_PATH = _PROJECT_ROOT / "data" / "nexafreight.db"
 
-DATACO_CSV_PATH = _PROJECT_ROOT / "data" / "raw" / "dataco" / "DataCoSupplyChainDataset.csv"
+DATACO_CSV_PATH = _PROJECT_ROOT / "data" / "raw" / "dataco" / "DataCoSupplyChain.csv"
 
 # Model artifact directories
 DELAY_MODEL_DIR = str(MODELS_DIR / "delay_classifier")

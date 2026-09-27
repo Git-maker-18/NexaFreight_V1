@@ -1,0 +1,150 @@
+{
+  "model_name": "eta_quantile_regressor",
+  "model_version": "1.0.0",
+  "trained_at": "2026-09-24T02:07:48.492260+00:00",
+  "git_sha": "03c68f6",
+  "random_seed": 42,
+  "training_runtime_sec": 440.5,
+  "model_artifact_sha256": "bef85256ee9e97a1",
+  "data": {
+    "train": {
+      "n_rows": 44179,
+      "mean_residual": 0.574,
+      "std_residual": 1.529
+    },
+    "val": {
+      "n_rows": 9893,
+      "mean_residual": 0.558,
+      "std_residual": 1.532
+    },
+    "test": {
+      "n_rows": 8109,
+      "mean_residual": 0.576,
+      "std_residual": 1.531
+    }
+  },
+  "features": {
+    "n_features": 14,
+    "feature_names": [
+      "shipping_mode",
+      "cargo_class",
+      "revenue",
+      "shipping_cost",
+      "scheduled_shipping_days",
+      "order_country",
+      "customer_country",
+      "product_price",
+      "order_profit",
+      "sla_month",
+      "sla_weekday",
+      "sla_quarter",
+      "total_distance_km",
+      "leg_count"
+    ],
+    "categorical": [
+      "shipping_mode",
+      "cargo_class",
+      "order_country",
+      "customer_country"
+    ],
+    "numeric": [
+      "revenue",
+      "shipping_cost",
+      "scheduled_shipping_days",
+      "product_price",
+      "order_profit",
+      "sla_month",
+      "sla_weekday",
+      "sla_quarter",
+      "total_distance_km",
+      "leg_count"
+    ]
+  },
+  "metrics": {
+    "train": {
+      "p10": {
+        "pinball_loss": 0.1678,
+        "baseline_loss": 0.1674,
+        "lift_pct": -0.22
+      },
+      "p50": {
+        "pinball_loss": 0.5033,
+        "baseline_loss": 0.5033,
+        "lift_pct": -0.0
+      },
+      "p85": {
+        "pinball_loss": 0.2514,
+        "baseline_loss": 0.2512,
+        "lift_pct": -0.08
+      }
+    },
+    "val": {
+      "p10": {
+        "pinball_loss": 0.1675,
+        "baseline_loss": 0.1668,
+        "lift_pct": -0.38
+      },
+      "p50": {
+        "pinball_loss": 0.5056,
+        "baseline_loss": 0.5041,
+        "lift_pct": -0.29
+      },
+      "p85": {
+        "pinball_loss": 0.2556,
+        "baseline_loss": 0.2538,
+        "lift_pct": -0.72
+      }
+    },
+    "test": {
+      "p10": {
+        "pinball_loss": 0.1685,
+        "baseline_loss": 0.1681,
+        "lift_pct": -0.23
+      },
+      "p50": {
+        "pinball_loss": 0.5054,
+        "baseline_loss": 0.5036,
+        "lift_pct": -0.36
+      },
+      "p85": {
+        "pinball_loss": 0.2562,
+        "baseline_loss": 0.2513,
+        "lift_pct": -1.94
+      }
+    }
+  },
+  "interval_coverage_p10_p85": {
+    "train": 0.7781,
+    "val": 0.7656,
+    "test": 0.7477
+  },
+  "baseline_coverage_p10_p85": {
+    "train": 1.0,
+    "val": 1.0,
+    "test": 1.0
+  },
+  "raw_monotonicity_rate": {
+    "train": 0.9662,
+    "val": 0.9821,
+    "test": 0.9345
+  },
+  "corrected_monotonicity_rate": {
+    "train": 1.0,
+    "val": 1.0,
+    "test": 1.0
+  },
+  "p50_mae_days": {
+    "train": 1.007,
+    "val": 1.011,
+    "test": 1.011
+  },
+  "best_iterations": {
+    "p10": 1000,
+    "p50": 441,
+    "p85": 542
+  },
+  "training_parameters": {
+    "max_rounds": 1000,
+    "early_stopping_rounds": 50
+  }
+}

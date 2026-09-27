@@ -18,6 +18,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from starlette.status import HTTP_404_NOT_FOUND
 
 from nexafreight.api.deps import get_registry
+from nexafreight.dependencies import get_current_user
+from nexafreight.models import User
 from nexafreight.api.schemas.ml import (
     DelayPredictionRequest,
     DelayPredictionResponse,
@@ -73,6 +75,7 @@ def _request_to_feature_dict(
 async def predict_delay(
     body: DelayPredictionRequest,
     registry: ModelRegistry = Depends(get_registry),
+    current_user: User = Depends(get_current_user),
 ) -> DelayPredictionResponse:
     """Run the delay classifier on the supplied features.
 
@@ -130,6 +133,7 @@ async def predict_delay(
 async def predict_eta(
     body: EtaPredictionRequest,
     registry: ModelRegistry = Depends(get_registry),
+    current_user: User = Depends(get_current_user),
 ) -> EtaPredictionResponse:
     """Run the ETA quantile model on the supplied features.
 
@@ -179,6 +183,7 @@ async def demand_forecast(
         description="Forecast horizon (30, 60, or 90 days)",
     ),
     registry: ModelRegistry = Depends(get_registry),
+    current_user: User = Depends(get_current_user),
 ) -> DemandForecastResponse:
     """Look up precomputed demand forecast for the given lane.
 

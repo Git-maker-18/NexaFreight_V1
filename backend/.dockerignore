@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+data/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.local
+.pre-commit-config.yaml
+tests/
+models/*.joblib
+models/*.pkl

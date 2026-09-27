@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from nexafreight.api.routes.analytics import ShipmentFinancialAggregate, window_stats
 
-pytestmark = pytest.mark.asyncio
 
 NOW = datetime.now(UTC)
 
@@ -118,6 +117,47 @@ async def test_scorecard_endpoint_window_shape(
             assert key in row
 
 
+async def test_scorecard_splits_by_provenance(
+    client, seed_admin_user, auth_headers_factory, make_shipment, make_order, make_leg
+) -> None:
+    """E12: bake-era (DERIVED) and runtime (SIMULATED) roll up side by side."""
+    from nexafreight.enums import Provenance
+
+    headers = auth_headers_factory(seed_admin_user)
+
+    s_runtime = await make_shipment(status="IN_TRANSIT", container_count=1)
+    await make_leg(shipment_id=s_runtime.id)
+    await make_order(
+        order_number="ORD-PROV-RUN",
+        shipment=s_runtime,
+        revenue=5_000.0,
+        shipping_cost=1_000.0,
+        sla_deadline=NOW + timedelta(days=10),
+    )
+    s_bake = await make_shipment(
+        status="IN_TRANSIT", container_count=1, provenance=Provenance.DERIVED
+    )
+    await make_leg(shipment_id=s_bake.id)
+    await make_order(
+        order_number="ORD-PROV-BAKE",
+        shipment=s_bake,
+        revenue=8_000.0,
+        shipping_cost=2_000.0,
+        sla_deadline=NOW + timedelta(days=10),
+    )
+
+    res = await client.get("/api/analytics/scorecard", headers=headers)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    by_prov = body.get("by_provenance", {})
+    assert set(by_prov) == {"SIMULATED", "DERIVED"}
+    assert by_prov["SIMULATED"]["shipments"] == 1
+    assert by_prov["SIMULATED"]["revenue_usd"] == 5_000.0
+    assert by_prov["DERIVED"]["shipments"] == 1
+    assert by_prov["DERIVED"]["revenue_usd"] == 8_000.0
+
+
+@pytest.mark.asyncio
 async def test_financial_rows_pnl_math(
     client, seed_admin_user, auth_headers_factory, make_shipment, make_order, make_leg
 ) -> None:

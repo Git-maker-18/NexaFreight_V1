@@ -215,7 +215,40 @@ npm run build
 | `GET` | `/api/v1/analytics/summary` | Executive dashboard KPIs, volume, revenue, and CO2 |
 | `POST` | `/api/v1/copilot/chat` | Interacts with the AI Copilot for operational queries |
 
+## Infrastructure & Deployability
+
+NexaFreight is designed to run locally using SQLite for rapid development, but is fully deployable to production infrastructure (e.g., Render, Oracle Cloud) using PostgreSQL and Docker.
+
+### Local SQLite (Default)
+By default, the backend uses an embedded SQLite database.
+- Simply run `pip install -e .` and `alembic upgrade head`.
+- The database is created locally at `backend/nexafreight.db`.
+
+### Local Postgres via Docker Compose
+For testing production parity locally, a `docker-compose.yml` is provided.
+- Run `docker-compose up -d postgres` to spin up a local PostgreSQL 16 instance.
+- The `docker-compose` setup includes the backend and frontend, but you can also run the database standalone.
+
+### Environment Overrides (`DATABASE_URL`)
+To connect the backend to a Postgres instance, set the `DATABASE_URL` environment variable:
+```bash
+export DATABASE_URL="postgresql+asyncpg://nexa:nexa_password@localhost:5432/nexafreight"
+alembic upgrade head
+uvicorn nexafreight.main:app
+```
+*Note: `DATABASE_URL` always takes precedence over the default SQLite database path.*
+
+Stage A (Render): the repo root render.yaml declares the backend web
+service from the GHCR image; deploy via Render Dashboard > New > Blueprint.
+
 ---
+
+## Contributing (Windows note)
+
+This repo is developed and verified via `git format-patch` / `git am --3way`
+workflows. On Windows checkouts, set `git config core.autocrlf false` for
+this repository to avoid phantom whole-file diffs; editors should save
+UTF-8 without BOM. Console tooling assumes cp1252-safe (ASCII) output.
 
 ## License
 

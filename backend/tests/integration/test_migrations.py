@@ -25,6 +25,10 @@ from nexafreight.enums import (
 )
 from nexafreight.models import Alert, Disruption, Leg, Location, Shipment, User
 
+pytestmark = pytest.mark.skipif(
+    "DATABASE_URL" in os.environ,
+    reason="Migration integration tests exercise SQLite up/down chains locally. CI verifies Postgres migrations via explicit alembic upgrade head in the workflow."
+)
 
 def run_alembic_command(db_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
     """Run an alembic command against a specific database file.
@@ -101,8 +105,19 @@ async def test_all_expected_tables_exist_after_upgrade(tmp_path: Path) -> None:
             "alerts",
             "corridor_alternatives",
             "decisions",
+        "decision_outcomes",
+        "parties",
             "audit_logs",
+            "parameter_policy",
+            "parameter_empirical",
+            "network_nodes",
+            "network_edges",
+            "edge_schedules",
+            "transshipment_links",
+            "route_plans",
+            "route_legs",
             "alembic_version",  # Alembic's version tracking table
+            "external_events",
         }
         assert (
             tables == expected_tables
@@ -129,6 +144,7 @@ async def test_foreign_key_enforcement_in_migrated_schema(tmp_path: Path) -> Non
         async with session_factory() as session:
             # Attempt to insert shipment with non-existent origin
             shipment = Shipment(
+                provenance=Provenance.SIMULATED,
                 origin_id=999999,  # Does not exist
                 destination_id=999998,
                 primary_transport_mode=TransportMode.SEA,
@@ -169,6 +185,7 @@ async def test_unique_constraint_duplicate_active_disruption(tmp_path: Path) -> 
             await session.flush()
 
             shipment = Shipment(
+                provenance=Provenance.SIMULATED,
                 origin_id=location.id,
                 destination_id=location.id,
                 primary_transport_mode=TransportMode.SEA,
@@ -245,6 +262,7 @@ async def test_unique_constraint_one_alert_per_disruption(tmp_path: Path) -> Non
             await session.flush()
 
             shipment = Shipment(
+                provenance=Provenance.SIMULATED,
                 origin_id=location.id,
                 destination_id=location.id,
                 primary_transport_mode=TransportMode.SEA,

@@ -15,7 +15,7 @@ from nexafreight.database import get_session_factory
 from nexafreight.models.location import Location
 from nexafreight.models.shipment import Shipment
 from nexafreight.models.order import Order
-from nexafreight.enums import ShipmentStatus, TransportMode, CargoClass, OrderSlaStatus
+from nexafreight.enums import ShipmentStatus, TransportMode, CargoClass, OrderSlaStatus, Provenance
 
 async def main():
     async with get_session_factory()() as session:
@@ -40,6 +40,7 @@ async def main():
             # create shipment
             s = Shipment(
                 id=str(uuid.uuid4()),
+                provenance=Provenance.HISTORICAL,
                 origin_id=orig,
                 destination_id=dest,
                 primary_transport_mode=mode,

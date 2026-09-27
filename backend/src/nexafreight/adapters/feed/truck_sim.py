@@ -110,8 +110,12 @@ class TruckSimAdapter:
                 next_point = geom.interpolate(next_fraction, normalized=True)
                 heading = _calculate_bearing(lat, lon, next_point.y, next_point.x)
 
-            # Approximate road speed in knots (~60 km/h = 32.4 knots)
-            speed_knots = 32.4
+            # Calibrated road speed (task 5 / E7): params road.speed.default
+            # (42 km/h observed national average), converted to knots.
+            from nexafreight.core import params as _params
+
+            speed_kmh = _params.get_float("road.speed.default", 42.0)
+            speed_knots = round(speed_kmh / 1.852, 1)
 
             positions.append(
                 AssetPosition(

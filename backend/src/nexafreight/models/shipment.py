@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from nexafreight.enums import CargoClass, ShipmentStatus, TransportMode
 from nexafreight.models.base import Base
-from nexafreight.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
+from nexafreight.models.mixins import ProvenanceMixin, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from nexafreight.models.alert import Alert
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from nexafreight.models.order import Order
 
 
-class Shipment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+class Shipment(Base, UUIDPrimaryKeyMixin, TimestampMixin, ProvenanceMixin):
     """Physical container journey from origin to destination.
 
     Physical/financial separation: Shipment owns route geometry, transport mode,

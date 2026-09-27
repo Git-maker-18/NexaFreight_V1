@@ -106,6 +106,11 @@ class OrderSummary(BaseModel):
     revenue: float = Field(..., description="Order revenue (USD)")
     sla_status: OrderSlaStatus = Field(..., description="Current SLA compliance status")
 
+    shipper: str | None = None
+    consignee: str | None = None
+    carrier: str | None = None
+
+
 
 class ShipmentDetail(BaseModel):
     """Full detail view of a shipment with legs and orders.

@@ -16,7 +16,7 @@ Run order contract:
 
 What it does
 ------------
-1. Reads DataCoSupplyChainDataset.csv with pandas.
+1. Reads DataCoSupplyChain.csv with pandas.
 2. Maps `Shipping Mode` -> primary shipping_mode:
         Standard Class -> SEA
         Second Class   -> RAIL
@@ -33,11 +33,13 @@ What it does
 Usage
 -----
     python scripts/01_ingest_dataco.py
-    python scripts/01_ingest_dataco.py --input data/raw/dataco/DataCoSupplyChainDataset.csv
+    python scripts/01_ingest_dataco.py --input data/raw/dataco/DataCoSupplyChain.csv
     python scripts/01_ingest_dataco.py --limit 1000 --dry-run
 """
 
 from __future__ import annotations
+
+import re
 
 import argparse
 import asyncio
@@ -108,19 +110,19 @@ def get_db_url() -> str:
 def resolve_dataco_file(user_path: str | None) -> Path:
     candidates: list[str | Path] = [
         user_path or "",
-        _REPO_ROOT / "data" / "raw" / "dataco" / "DataCoSupplyChainDataset.csv",
+        _REPO_ROOT / "data" / "raw" / "dataco" / "DataCoSupplyChain.csv",
         _REPO_ROOT.parent.parent
         / "Datasets"
         / "Primary Dataset — DataCo Smart Supply Chain"
-        / "DataCoSupplyChainDataset.csv",
+        / "DataCoSupplyChain.csv",
         _REPO_ROOT.parent
         / "Datasets"
         / "Primary Dataset — DataCo Smart Supply Chain"
-        / "DataCoSupplyChainDataset.csv",
+        / "DataCoSupplyChain.csv",
         _REPO_ROOT
         / "Datasets"
         / "Primary Dataset — DataCo Smart Supply Chain"
-        / "DataCoSupplyChainDataset.csv",
+        / "DataCoSupplyChain.csv",
     ]
     for cand in candidates:
         p = Path(cand)
@@ -227,12 +229,13 @@ async def persist_dataco(
     batch_size: int = 1000,
 ) -> None:
     db_url = get_db_url()
-    log.info("Connecting to database: %s", db_url)
+    log.info("Connecting to database: %s", re.sub(r"(//[^:/@]+:)[^@]+@", r"\1***@", db_url))
     engine = create_async_engine(
         db_url,
-        connect_args={"check_same_thread": False, "timeout": 30},
+        connect_args=({"check_same_thread": False, "timeout": 30} if db_url.startswith("sqlite") else {}),
     )
-    event.listen(engine.sync_engine, "connect", _set_sqlite_pragmas)
+    if db_url.startswith("sqlite"):
+        event.listen(engine.sync_engine, "connect", _set_sqlite_pragmas)
     orders_tbl, order_items_tbl = _resolve_tables()
 
     try:

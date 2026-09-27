@@ -77,6 +77,8 @@ from nexafreight.ml.constants import (  # noqa: E402
 )
 from nexafreight.ml.data_source import load_raw  # noqa: E402
 from nexafreight.ml.eta_model import interval_coverage, pinball_loss  # noqa: E402
+from nexafreight.eval.forecast_benchmark import per_level_empirical_coverage, rmse  # noqa: E402
+from nexafreight.ml.feature_contract import encode_categorical_column  # noqa: E402
 from nexafreight.ml.features import build_features  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -237,8 +239,12 @@ def _align_categoricals(
     cat_cols: list[str],
 ) -> tuple[dict[str, pd.DataFrame], dict[str, list[str]]]:
     """
-    Learn categorical levels from training split ONLY.
-    Unseen val/test levels become NaN (matching inference-time behaviour).
+    Learn categorical levels from training split ONLY, then encode every
+    split through the shared contract (E10): unseen val/test levels map to
+    MISSING_SENTINEL exactly as the serving encoder does. (Historical note:
+    this loop used to leave unseen levels as out-of-category NaN at train
+    time while serving mapped them to the sentinel - a real train/serve
+    skew, now closed by the one shared implementation.)
     """
     out = {k: df.copy() for k, df in splits.items()}
     levels: dict[str, list[str]] = {}
@@ -249,8 +255,7 @@ def _align_categoricals(
         levels[col] = cats
 
         for name in out:
-            raw = out[name][col].fillna(MISSING_SENTINEL).astype(str)
-            out[name][col] = pd.Categorical(raw, categories=cats + [MISSING_SENTINEL])
+            out[name][col] = encode_categorical_column(out[name][col], cats)
 
     return out, levels
 
@@ -403,6 +408,21 @@ def train(max_rounds: int = 1000, early_stop: int = 50) -> None:
     X_splits, cat_levels = _align_categoricals(X_splits, cat_cols)
 
     # ------------------------------------------------------------------
+    # Guard (audit E2): the committed v1.0.0 artifact silently shipped
+    # category_levels = [AIR, RAIL] — SEA (≈60% of training rows) was
+    # missing, so the majority of inference rows hit unseen-level NaN.
+    # Fail the run loudly instead of training a majority-blind model.
+    # ------------------------------------------------------------------
+    _required_mode_levels = {"AIR", "RAIL", "SEA"}
+    _missing_modes = _required_mode_levels - set(cat_levels.get("shipping_mode", []))
+    if _missing_modes:
+        raise RuntimeError(
+            f"shipping_mode category_levels missing {sorted(_missing_modes)}; "
+            "training frame is not representative of the mode mix. "
+            "Refusing to save an artifact that would mis-serve those modes."
+        )
+
+    # ------------------------------------------------------------------
     # Step 5: Baseline
     # ------------------------------------------------------------------
     log.info("Step 5/8 — Fitting grouped-quantile baseline ...")
@@ -486,6 +506,8 @@ def train(max_rounds: int = 1000, early_stop: int = 50) -> None:
     raw_mono: dict[str, float] = {}
     cor_mono: dict[str, float] = {}
 
+    wave3b_metrics = {}
+
     for split in ("train", "val", "test"):
         Xs = X_splits[split]
         yt = y_splits[split].values
@@ -527,6 +549,16 @@ def train(max_rounds: int = 1000, early_stop: int = 50) -> None:
         p50_mae[split] = float(np.mean(np.abs(yt - corrected["p50"])))
 
         eval_results[split] = split_metrics
+
+        if split == "test":
+            wave3b_metrics["model_cov"] = per_level_empirical_coverage(
+                yt, {0.10: corrected["p10"], 0.50: corrected["p50"], 0.85: corrected["p85"]}
+            )
+            wave3b_metrics["bl_cov"] = per_level_empirical_coverage(
+                yt, {0.10: bl_preds[0.10], 0.50: bl_preds[0.50], 0.85: bl_preds[0.85]}
+            )
+            wave3b_metrics["model_rmse"] = rmse(yt, corrected["p50"])
+            wave3b_metrics["bl_rmse"] = rmse(yt, bl_preds[0.50])
 
     # ------------------------------------------------------------------
     # Step 8: Save artifacts
@@ -638,6 +670,16 @@ def train(max_rounds: int = 1000, early_stop: int = 50) -> None:
             name: round(cor_mono[name], 4) for name in ("train", "val", "test")
         },
         "p50_mae_days": {name: round(p50_mae[name], 3) for name in ("train", "val", "test")},
+        "forecast_instruments": {
+            "p10_coverage": wave3b_metrics["model_cov"][0.10],
+            "p50_coverage": wave3b_metrics["model_cov"][0.50],
+            "p85_coverage": wave3b_metrics["model_cov"][0.85],
+            "naive_p10_coverage": wave3b_metrics["bl_cov"][0.10],
+            "naive_p50_coverage": wave3b_metrics["bl_cov"][0.50],
+            "naive_p85_coverage": wave3b_metrics["bl_cov"][0.85],
+            "p50_rmse": wave3b_metrics["model_rmse"],
+            "naive_p50_rmse": wave3b_metrics["bl_rmse"],
+        },
         "best_iterations": best_iters,
         "training_parameters": {
             "max_rounds": max_rounds,
@@ -647,6 +689,30 @@ def train(max_rounds: int = 1000, early_stop: int = 50) -> None:
     meta_path = model_dir / "metadata.json"
     _atomic_json(meta_path, metadata)
     log.info("  metadata.json  → %s", meta_path)
+
+    # --- eta_forecast_benchmark.json ---
+    import hashlib
+    csv_file = _PROJECT_ROOT / "data" / "raw" / "dataco" / "DataCoSupplyChain.csv"
+    csv_hash = "unknown"
+    if csv_file.exists():
+        with open(csv_file, "rb") as f:
+            csv_hash = hashlib.sha256(f.read()).hexdigest()[:16]
+
+    benchmark_artifact = {
+        "metrics": metadata["forecast_instruments"],
+        "split_sizes": {
+            "train": metadata["data"]["train"]["n_rows"],
+            "val": metadata["data"]["val"]["n_rows"],
+            "test": metadata["data"]["test"]["n_rows"]
+        },
+        "sha256_first16": csv_hash,
+        "quantile_levels": [0.10, 0.50, 0.85],
+        "review_spec": "EVALUATION_REVIEW 2.1",
+        "timestamp": trained_at
+    }
+    benchmark_path = _PROJECT_ROOT / "eval" / "artifacts" / "eta_forecast_benchmark.json"
+    _atomic_json(benchmark_path, benchmark_artifact)
+    log.info("  eta_forecast_benchmark.json  → %s", benchmark_path)
 
     # ------------------------------------------------------------------
     # Summary table
@@ -670,6 +736,11 @@ def train(max_rounds: int = 1000, early_stop: int = 50) -> None:
         print(f"{tag.upper():<10} {vl:>10.4f} {tl:>10.4f} {bl:>10.4f} {lift_s:>10}")
 
     print("-" * len(hdr))
+    print(f"REPORT > ETA P10 coverage: {wave3b_metrics['model_cov'][0.10]:.5f}  (target 0.10)")
+    print(f"REPORT > ETA P50 coverage: {wave3b_metrics['model_cov'][0.50]:.5f}  (target 0.50)")
+    print(f"REPORT > ETA P85 coverage: {wave3b_metrics['model_cov'][0.85]:.5f}  (target 0.85)")
+    print(f"REPORT > ETA NAIVE P10/P50/P85 coverage: {wave3b_metrics['bl_cov'][0.10]:.5f} / {wave3b_metrics['bl_cov'][0.50]:.5f} / {wave3b_metrics['bl_cov'][0.85]:.5f}")
+    print(f"REPORT > ETA P50 RMSE: {wave3b_metrics['model_rmse']:.4f}  (naive {wave3b_metrics['bl_rmse']:.4f})")
     print(f"  Test Coverage [P10..P85]:    {coverage['test'] * 100:.1f}%  (nominal 75%)")
     print(f"  Baseline Coverage:           {bl_coverage['test'] * 100:.1f}%")
     print(f"  Raw Monotonicity:            {raw_mono['test'] * 100:.1f}%")

@@ -32,6 +32,8 @@ Usage
 
 from __future__ import annotations
 
+import re
+
 import argparse
 import asyncio
 import logging
@@ -76,7 +78,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("nexafreight.consolidate_shipments")
 
-PROVENANCE = "DERIVED"
+PROVENANCE = "HISTORICAL"  # parcel-era reference world: ML training only, excluded from active analytics (audit E3)
 
 
 # --------------------------------------------------------------------------- #
@@ -162,25 +164,45 @@ def _set_sqlite_pragmas(dbapi_conn: Any, connection_record: Any) -> None:
 # Main Consolidation Flow
 # --------------------------------------------------------------------------- #
 async def load_country_location_map(conn, loc_tbl: Table) -> tuple[dict[str, int], int, int]:
-    """Build country_code -> representative location_id mapping with verified global hubs."""
-    country_map: dict[str, int] = {
-        "US": 78517,  # New York (USNYC)
-        "US_WEST": 77063,  # Los Angeles (USLAX)
-        "US_MIDWEST": 72285,  # Chicago (USCGH)
-        "NL": 60762,  # Rotterdam (NLRTM)
-        "DE": 22020,  # Hamburg (DEHAM)
-        "FR": 37411,  # Le Havre (FRLEH)
-        "CN": 16513,  # Shanghai (CNSGH)
-        "SG": 68109,  # Singapore (SGSIN)
-        "JP": 57188,  # Yokohama/Tokyo (JPYOK)
-        "AE": 28,  # Dubai (AEDXB)
-        "IN": 52070,  # Mumbai (INBOM)
-        "AU": 3237,  # Sydney (AUSYD)
-        "ID": 50681,  # Jakarta (IDJKT)
-    }
+    """Build country_code -> representative location_id mapping.
 
-    default_origin = 78517  # New York
-    default_dest = 60762  # Rotterdam
+    Audit E21 fix: this used to return hardcoded location row-IDs captured
+    from the original author's database. Row-IDs are autoincrement values —
+    on any freshly migrated/rebuilt database they silently resolve to OTHER
+    cities (FK still passes), rerouting whole trade lanes through wrong hubs.
+    Resolve by UN/LOCODE instead and fail loudly if a hub is missing.
+    """
+    hub_locodes: dict[str, str] = {
+        "US": "USNYC",  # New York
+        "US_WEST": "USLAX",  # Los Angeles
+        "US_MIDWEST": "USCGH",  # Chicago
+        "NL": "NLRTM",  # Rotterdam
+        "DE": "DEHAM",  # Hamburg
+        "FR": "FRLEH",  # Le Havre
+        "CN": "CNSGH",  # Shanghai
+        "SG": "SGSIN",  # Singapore
+        "JP": "JPYOK",  # Yokohama
+        "AE": "AEDXB",  # Dubai
+        "IN": "INBOM",  # Mumbai
+        "AU": "AUSYD",  # Sydney
+        "ID": "IDJKT",  # Jakarta
+    }
+    default_origin_locode = "USNYC"
+    default_dest_locode = "NLRTM"
+
+    res = await conn.execute(select(loc_tbl.c["id"], loc_tbl.c["locode"]))
+    by_locode = {locode: int(lid) for lid, locode in res.fetchall()}
+
+    missing = [f"{key}->{locode}" for key, locode in hub_locodes.items() if locode not in by_locode]
+    if missing:
+        raise RuntimeError(
+            "Consolidation hub locodes missing from locations table "
+            f"(run scripts/02_ingest_unlocode.py first): {', '.join(missing)}"
+        )
+
+    country_map = {key: by_locode[locode] for key, locode in hub_locodes.items()}
+    default_origin = by_locode[default_origin_locode]
+    default_dest = by_locode[default_dest_locode]
 
     return country_map, default_origin, default_dest
 
@@ -195,6 +217,8 @@ async def load_orders_for_consolidation(conn, orders_tbl: Table, limit: int = 0)
         orders_tbl.c["shipping_cost"],
         orders_tbl.c["shipping_mode"],
         orders_tbl.c["cargo_class"],
+        orders_tbl.c["weight_kg"],
+        orders_tbl.c["volume_m3"],
     )
     if limit > 0:
         stmt = stmt.limit(limit)
@@ -226,7 +250,7 @@ async def load_orders_for_consolidation(conn, orders_tbl: Table, limit: int = 0)
     ]
 
     order_views: list[OrderView] = []
-    for idx, (oid, onum, odate, deadline, rev, cost, mode, cargo) in enumerate(rows):
+    for idx, (oid, onum, odate, deadline, rev, cost, mode, cargo, w_kg, v_m3) in enumerate(rows):
         if odate and odate.tzinfo is None:
             odate = odate.replace(tzinfo=UTC)
         if deadline and deadline.tzinfo is None:
@@ -252,6 +276,8 @@ async def load_orders_for_consolidation(conn, orders_tbl: Table, limit: int = 0)
                 sla_deadline=deadline or datetime.now(UTC),
                 revenue=float(rev or 0.0),
                 shipping_cost=float(cost or 0.0),
+                weight_kg=w_kg,
+                volume_m3=v_m3,
             )
         )
     return order_views
@@ -264,12 +290,13 @@ async def persist_shipments(
     batch_size: int = 1000,
 ) -> None:
     db_url = get_db_url()
-    log.info("Connecting to database: %s", db_url)
+    log.info("Connecting to database: %s", re.sub(r"(//[^:/@]+:)[^@]+@", r"\1***@", db_url))
     engine = create_async_engine(
         db_url,
-        connect_args={"check_same_thread": False, "timeout": 30},
+        connect_args=({"check_same_thread": False, "timeout": 30} if db_url.startswith("sqlite") else {}),
     )
-    event.listen(engine.sync_engine, "connect", _set_sqlite_pragmas)
+    if db_url.startswith("sqlite"):
+        event.listen(engine.sync_engine, "connect", _set_sqlite_pragmas)
 
     try:
         async with engine.begin() as conn:
@@ -287,6 +314,7 @@ async def persist_shipments(
                 values = [
                     {
                         "id": s.id,
+                        "provenance": PROVENANCE,
                         "origin_id": s.origin_id,
                         "destination_id": s.destination_id,
                         "primary_transport_mode": s.primary_transport_mode,

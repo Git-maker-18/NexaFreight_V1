@@ -23,6 +23,41 @@ class HealthResponse(BaseModel):
     version: str
 
 
+class ValidationCheck(BaseModel):
+    """One row of the validation matrix."""
+
+    name: str
+    actual: float
+    ref: float
+    tol: float
+    ok: bool
+    one_sided: bool | None = None
+
+
+class ValidationMatrixResponse(BaseModel):
+    """Live reference-validation matrix (Task 17): feeds the /validation page.
+
+    Same implementation as the CI gate (eval/validate.py) — one source of
+    truth, so the public page can never disagree with CI.
+    """
+
+    generated_at: str
+    all_ok: bool
+    pass_count: int
+    total_count: int
+    static: list[ValidationCheck]
+    artifact: list[ValidationCheck]
+    skips: list[str]
+
+
+@router.get("/validation", response_model=ValidationMatrixResponse, tags=["health"])
+async def validation_matrix() -> ValidationMatrixResponse:
+    """Live validation matrix: every on-screen number vs published references."""
+    from nexafreight.services.validation_matrix import build_matrix
+
+    return ValidationMatrixResponse(**build_matrix())
+
+
 @router.get("/", response_model=HealthResponse, tags=["health"])
 @router.get("", response_model=HealthResponse, tags=["health"], include_in_schema=False)
 async def health_check(db: AsyncSession = Depends(get_db_session)) -> HealthResponse:

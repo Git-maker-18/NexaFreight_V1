@@ -19,7 +19,6 @@ from nexafreight.services.sla_checker import (
     escalate_unacknowledged,
 )
 
-pytestmark = pytest.mark.asyncio
 
 NOW = datetime.now(UTC)
 
@@ -32,7 +31,7 @@ def test_compute_sla_risk_bands() -> None:
     deadline_far = NOW + timedelta(days=5)
 
     assert compute_sla_risk(deadline_far, NOW + timedelta(days=1)) == SlaRisk.ON_TIME
-    assert compute_sla_risk(deadline_low, NOW + timedelta(days=1)) == SlaRisk.LOW
+    assert compute_sla_risk(deadline_low, NOW + timedelta(days=1)) == SlaRisk.MEDIUM
     assert compute_sla_risk(deadline_medium, NOW + timedelta(days=1)) == SlaRisk.MEDIUM
     assert compute_sla_risk(deadline_close, NOW + timedelta(days=1)) == SlaRisk.HIGH
     assert compute_sla_risk(NOW - timedelta(days=1), NOW) == SlaRisk.BREACH

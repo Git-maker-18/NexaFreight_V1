@@ -23,7 +23,6 @@ from nexafreight.database import create_session_factory
 from nexafreight.enums import AlertStatus, ShipmentStatus
 from nexafreight.models import AuditLog, CorridorAlternative, Leg
 
-pytestmark = pytest.mark.asyncio
 
 NOW = datetime.now(UTC)
 

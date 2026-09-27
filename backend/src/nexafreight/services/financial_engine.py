@@ -5,18 +5,23 @@ deterministic and unit-testable. Used by the alert engine, reroute
 engine, SLA checker (Definitive Plan Phases 1-6), and the shipment
 financials endpoint.
 
-Rates & caps (documented, conservative):
-- SLA penalty: 5% of order revenue per day late, capped at 10% of revenue
-- Demurrage: 4 free days, then $150/container/day; after 7 billable
-  days the rate doubles (tier-2 steepening)
-- Freight: per-mode $/tonne-km nominal rates (SEA 0.02, AIR 1.8,
-  ROAD 0.06, RAIL 0.03)
-- CO2: per-mode g/tonne-km emission factors (SEA 6.5, AIR 500,
-  ROAD 62, RAIL 22) priced at $0.08/kg
+Rates & caps (calibrated to published anchors — Regulatory_Tax_Reference.md SS8;
+fx USD/INR = 88):
+- SLA penalty: LD norms — 0.5% of order value per WEEK late (WEEKLY rounding),
+  capped at 10% (calculate_sla_penalty_weekly). The legacy 5%/day function is
+  kept for backward compatibility but overstates LD norms ~7x.
+- Demurrage: 4 free days, then Rs5,500/container/day (= $57.40 at fx 95.8;
+  JNPT band Rs3-8k/box/day); after 7 billable days the rate doubles.
+- Freight: per-mode $/tonne-km (SEA 0.012 mainline; AIR 0.9 = NCAER Rs72/tkm
+  anchor; ROAD 0.036 = Rs3.2/tkm bottom-up; RAIL 0.016 = Rs1.4/tkm class-avg).
+- CO2: per-mode g/tonne-km emission factors (SEA 8.0 = GLEC v3.2 container
+  band 7.6-9.1 mix mid, AIR 500, ROAD 62, RAIL 22) priced at $0.08/kg
+  (CBAM transitory price anchor).
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 from nexafreight.enums import TransportMode
@@ -26,7 +31,12 @@ from nexafreight.enums import TransportMode
 # ---------------------------------------------------------------------------
 
 #: SLA penalty rate per day late (fraction of order revenue).
+#: DEPRECATED for decision math — kept only for backward compatibility.
+#: LD norms are 0.5%/week (see SLA_PENALTY_PCT_PER_WEEK); 5%/day ≈ 7x norms.
 SLA_PENALTY_PCT_PER_DAY: float = 0.05
+
+#: SLA penalty rate per WEEK late per LD norms (fraction of order value).
+SLA_PENALTY_PCT_PER_WEEK: float = 0.005
 
 #: SLA penalty hard cap as a fraction of order revenue.
 SLA_PENALTY_CAP_PCT: float = 0.10
@@ -35,7 +45,8 @@ SLA_PENALTY_CAP_PCT: float = 0.10
 DEMURRAGE_FREE_DAYS: int = 4
 
 #: Demurrage charge per container-day, tier 1 (days 1-7 after free period).
-DEMURRAGE_DAILY_RATE: float = 150.0
+#: Rs5,500/box/day (JNPT band mid, Regulatory doc SS8) / fx 95.8 = $57.40.
+DEMURRAGE_DAILY_RATE: float = 5500.0 / 95.8
 
 #: Billable days at tier 1 before the rate doubles.
 DEMURRAGE_TIER1_DAYS: int = 7
@@ -44,16 +55,21 @@ DEMURRAGE_TIER1_DAYS: int = 7
 DEMURRAGE_TIER2_MULTIPLIER: float = 2.0
 
 #: Nominal freight rates, USD per tonne-km, by transport mode.
+#: Anchors: SEA $0.012 mainline (INDUSTRY); AIR $0.9 = NCAER Rs72/tkm / fx 88
+#: (closes E9, was 1.8 = 2x the national anchor); ROAD Rs3.2/tkm / 95.8 = 0.0334
+#: (DERIVED bottom-up, was 0.06); RAIL Rs1.4/tkm class-avg / 95.8 = 0.0146.
 FREIGHT_RATE_PER_T_KM: dict[str, float] = {
-    "SEA": 0.02,
-    "AIR": 1.8,
-    "ROAD": 0.06,
-    "RAIL": 0.03,
+    "SEA": 0.012,
+    "AIR": 0.9,
+    "ROAD": 0.0334,
+    "RAIL": 0.0146,
 }
 
 #: CO2 emission factors, grams per tonne-km, by transport mode.
+#: SEA: GLEC v3.2 deep-sea container 7.6 (>=8k TEU) - 9.1 (3-8k TEU);
+#: 8.0 = mid for the modeled vessel mix (was 6.5, below the entire band).
 CO2_G_PER_T_KM: dict[str, float] = {
-    "SEA": 6.5,
+    "SEA": 8.0,
     "AIR": 500.0,
     "ROAD": 62.0,
     "RAIL": 22.0,
@@ -146,12 +162,41 @@ def calculate_sla_penalty(
 
     Formula:
         min(revenue * penalty_pct * days_late, revenue * cap_pct)
+
+    Deprecated:
+        Decision paths now use calculate_sla_penalty_weekly (LD norms). This
+        per-day variant remains for backward compatibility only.
     """
     if days_late <= 0:
         return 0.0
     uncapped = revenue * penalty_pct * days_late
     cap = revenue * cap_pct
     return min(uncapped, cap)
+
+
+def calculate_sla_penalty_weekly(
+    revenue: float,
+    pct_per_week: float,
+    days_late: int,
+    *,
+    cap_pct: float = SLA_PENALTY_CAP_PCT,
+) -> float:
+    """Calculate SLA penalty per LD norms: pct per WEEK late, WEEKLY rounding.
+
+    Indian LD practice accrues 0.5% of order value per week of delay (any part
+    week rounds up to a full week), capped at 10% of order value. Callers pass
+    pct_per_week/cap_pct as fractions (0.005 / 0.10) — typically read from
+    params keys sla.penalty_pct_per_week (0.5) and sla.penalty_cap_pct (10.0),
+    divided by 100.
+
+    Formula:
+        weeks_late = ceil(days_late / 7)
+        min(revenue * pct_per_week * weeks_late, revenue * cap_pct)
+    """
+    if days_late <= 0:
+        return 0.0
+    weeks_late = math.ceil(days_late / 7)
+    return min(revenue * pct_per_week * weeks_late, revenue * cap_pct)
 
 
 # ---------------------------------------------------------------------------

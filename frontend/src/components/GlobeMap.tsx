@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 
 
 /* Map pigment constants — were lib/map-palette.ts before Phase 0 removed it.
@@ -128,7 +128,7 @@ function extractTruckPoints(_routesFC: GeoJSON.FeatureCollection): GeoJSON.Featu
   return { type: 'FeatureCollection', features: [] };
 }
 
-function getAssetMarkerSvg(assetType: 'VESSEL' | 'TRUCK' | 'FLIGHT', _heading: number, _speed?: number | null): string {
+function getAssetMarkerSvg(assetType: 'VESSEL' | 'TRUCK' | 'FLIGHT' | 'TRAIN', _heading: number, _speed?: number | null): string {
   if (assetType === 'VESSEL') {
     return `
       <div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 6px rgba(59,130,246,0.95));pointer-events:none;">
@@ -149,6 +149,21 @@ function getAssetMarkerSvg(assetType: 'VESSEL' | 'TRUCK' | 'FLIGHT', _heading: n
           <rect x="6" y="9" width="12" height="13" rx="1.5" fill="#00E676" fill-opacity="0.9"/>
           <circle cx="7.5" cy="21" r="0.8" fill="#FF1744"/>
           <circle cx="16.5" cy="21" r="0.8" fill="#FF1744"/>
+        </svg>
+      </div>
+    `;
+  }
+  // TRAIN (rail freight) — matches the purple dashed `routes-rail` layer
+  if (assetType === 'TRAIN') {
+    return `
+      <div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 6px rgba(168,85,247,0.95));pointer-events:none;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#a855f7" stroke="#e9d5ff" stroke-width="1">
+          <rect x="5" y="3" width="14" height="13" rx="3" fill="#a855f7"/>
+          <rect x="7.5" y="5.5" width="9" height="4.5" rx="1" fill="#0B0D19"/>
+          <rect x="7.5" y="11.5" width="4" height="2.6" rx="0.8" fill="#e9d5ff"/>
+          <circle cx="8" cy="18.5" r="1.6" fill="#0B0D19" stroke="#a855f7" stroke-width="1.2"/>
+          <circle cx="16" cy="18.5" r="1.6" fill="#0B0D19" stroke="#a855f7" stroke-width="1.2"/>
+          <path d="M5.5 21.5 L18.5 21.5" stroke="#a855f7" stroke-width="1.6" stroke-linecap="round"/>
         </svg>
       </div>
     `;
@@ -302,7 +317,7 @@ interface LiveMarkerRecord {
   currentCoords: [number, number]; // [lng, lat]
   targetCoords: [number, number];  // [lng, lat]
   currentHeading: number;
-  assetType: 'VESSEL' | 'TRUCK' | 'FLIGHT';
+  assetType: 'VESSEL' | 'TRUCK' | 'FLIGHT' | 'TRAIN';
   assetId: string;
   latestPos?: PositionReport;
 }
@@ -378,7 +393,7 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
     showPopup(coords, `<div style="${pStyle}border:1px solid ${modeColor}50;min-width:260px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
         <div style="display:flex;align-items:center;gap:6px;">
-          <span style="color:${modeColor};font-size:11px;font-weight:700;letter-spacing:0.08em;">${mode === 'ROAD' ? 'ROAD FREIGHT (TRUCK)' : mode === 'AIR' ? 'AIR CARGO (FLIGHT)' : 'MARITIME (VESSEL)'}</span>
+          <span style="color:${modeColor};font-size:11px;font-weight:700;letter-spacing:0.08em;">${mode === 'ROAD' ? 'ROAD FREIGHT (TRUCK)' : mode === 'AIR' ? 'AIR CARGO (FLIGHT)' : mode === 'RAIL' ? 'RAIL FREIGHT (TRAIN)' : 'MARITIME (VESSEL)'}</span>
           ${getProvenanceBadgeHtml(prov, 'xs')}
         </div>
         <span style="background:${modeColor}20;color:${modeColor};padding:2px 8px;border-radius:4px;font-size:10px;font-weight:bold;">${mode}</span>
@@ -502,11 +517,11 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
   const handleMarkerClick = useCallback(async (
     pos: PositionReport,
     coords: [number, number],
-    normType: 'VESSEL' | 'TRUCK' | 'FLIGHT'
+    normType: 'VESSEL' | 'TRUCK' | 'FLIGHT' | 'TRAIN'
   ) => {
     const assetId = String(pos.asset_id ?? '');
-    const mode = normType === 'VESSEL' ? 'SEA' : normType === 'TRUCK' ? 'ROAD' : 'AIR';
-    const modeColor = mode === 'SEA' ? '#3b82f6' : mode === 'AIR' ? '#f97316' : '#00E676';
+    const mode = normType === 'VESSEL' ? 'SEA' : normType === 'TRUCK' ? 'ROAD' : normType === 'TRAIN' ? 'RAIL' : 'AIR';
+    const modeColor = mode === 'SEA' ? '#3b82f6' : mode === 'AIR' ? '#f97316' : mode === 'RAIL' ? '#a855f7' : '#00E676';
 
     // 1. Cross-reference shipment ID
     let shipmentId: string | null = (pos as any).shipment_id || null;
@@ -761,7 +776,7 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
     const attributeFallbacks: maplibregl.MapOptions['canvasContextAttributes'][] = [
       undefined,
       { powerPreference: 'low-power', failIfMajorPerformanceCaveat: false },
-      { contextType: 'webgl', powerPreference: 'low-power', failIfMajorPerformanceCaveat: false },
+      { contextType: 'webgl2', powerPreference: 'low-power', failIfMajorPerformanceCaveat: false },
     ];
 
     let map: maplibregl.Map | undefined;
@@ -771,7 +786,7 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
           canvasContextAttributes ? { ...baseOptions, canvasContextAttributes } : baseOptions
         );
         break;
-      } catch (e) {
+      } catch (e: any) {
         // A failed constructor leaves its canvas behind; the next attempt needs a clean container.
         container.innerHTML = '';
         if (canvasContextAttributes === attributeFallbacks[attributeFallbacks.length - 1]) throw e;
@@ -2624,7 +2639,7 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
           }));
 
         setGeo('conflict-zones', [...zoneFeatures, ...eventFeatures]);
-      } catch (e) {
+      } catch (e: any) {
         // Fallback: if API fails, use minimal known zones
         const FALLBACK_ZONES = [
           { label: 'UKRAINE WAR', severity: 'war', lat: 48.5, lng: 31.2, description: 'Ongoing Russian invasion of Ukraine.', sourceUrl: 'https://liveuamap.com/' },
@@ -2825,11 +2840,13 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
       if (isNaN(targetLng) || isNaN(targetLat) || (targetLng === 0 && targetLat === 0)) continue;
 
       const rawType = String(pos.asset_type || '').toUpperCase();
-      const normType: 'VESSEL' | 'TRUCK' | 'FLIGHT' =
+      const normType: 'VESSEL' | 'TRUCK' | 'FLIGHT' | 'TRAIN' =
         rawType === 'VESSEL' || rawType === 'SEA'
           ? 'VESSEL'
           : rawType === 'TRUCK' || rawType === 'ROAD'
           ? 'TRUCK'
+          : rawType === 'TRAIN' || rawType === 'RAIL'
+          ? 'TRAIN'
           : 'FLIGHT';
 
       const heading = pos.heading_deg != null && !isNaN(Number(pos.heading_deg)) && Number(pos.heading_deg) !== 511
@@ -2978,7 +2995,7 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
         };
 
         // Wire marker click to open shipment inspector
-        el.addEventListener('click', (e) => {
+        el.addEventListener('click', (e: any) => {
           e.stopPropagation();
           const currentCoord = liveMarkersRef.current.get(rawAssetId)?.currentCoords || [effectiveLng, effectiveLat];
           const latest = liveMarkersRef.current.get(rawAssetId)?.latestPos || pos;
@@ -3119,11 +3136,11 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
             'fog-color': '#04040A',
             'fog-ground-blend': 0.9,
           });
-        } catch (e) { console.warn('[NexaFreight] Suppressed error:', e instanceof Error ? e.message : e); }
+        } catch (e: any) { console.warn('[NexaFreight] Suppressed error:', e instanceof Error ? e.message : e); }
       } else {
         map.easeTo({ pitch: 0, duration: 800 });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn('Projection switch failed:', e);
     }
   }, [mapReady, projection]);
@@ -3189,7 +3206,7 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
         // ── DISABLE 3D ──
         if (map.getLayer('NexaFreight-3d-buildings')) map.removeLayer('NexaFreight-3d-buildings');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn('[NexaFreight] 3D terrain toggle error:', e);
     }
   }, [mapReady, activeLayers.terrain_3d]);
@@ -3220,7 +3237,7 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
           map.setLayoutProperty('satellite-layer', 'visibility', 'none');
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn('Style switch failed:', e);
     }
   }, [mapReady, mapStyle]);

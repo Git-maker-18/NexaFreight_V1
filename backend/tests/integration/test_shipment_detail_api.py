@@ -41,6 +41,7 @@ async def test_get_shipment_detail_with_legs_and_orders(
 
     # Create shipment
     shipment = Shipment(
+        provenance=Provenance.SIMULATED,
         origin_id=origin.id,
         destination_id=dest.id,
         primary_transport_mode=TransportMode.SEA,
@@ -204,6 +205,7 @@ async def test_get_shipment_route_multiple_legs(
     waypoint = await make_location(locode="GBLON")
 
     shipment = Shipment(
+        provenance=Provenance.SIMULATED,
         origin_id=origin.id,
         destination_id=dest.id,
         primary_transport_mode=TransportMode.SEA,
@@ -327,6 +329,7 @@ async def test_get_shipment_route_malformed_geometry_skipped(
     dest = await make_location(locode="NLRTM")
 
     shipment = Shipment(
+        provenance=Provenance.SIMULATED,
         origin_id=origin.id,
         destination_id=dest.id,
         primary_transport_mode=TransportMode.SEA,

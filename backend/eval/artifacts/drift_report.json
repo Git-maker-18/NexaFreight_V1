@@ -1,0 +1,26 @@
+{
+  "ok": true,
+  "flags": [],
+  "artifact_age_days": 0.38,
+  "psi": {},
+  "psi_threshold": 0.2,
+  "max_age_days": 30,
+  "generated_at": "2026-09-24T11:17:31.668035+00:00",
+  "train_rows": 46711,
+  "train_means": {
+    "revenue": 530.9041906617284,
+    "shipping_cost": 63.71125088308964,
+    "scheduled_shipping_days": 2.932735330007921,
+    "product_price": 130.3079179649708,
+    "order_profit": 19.210433318452463,
+    "sla_month": 6.049924000770696
+  },
+  "split_psi_info": {
+    "revenue": 1.5719,
+    "shipping_cost": 1.5717,
+    "scheduled_shipping_days": 0.0,
+    "product_price": 2.334,
+    "order_profit": 0.3063,
+    "sla_month": 6.2887
+  }
+}

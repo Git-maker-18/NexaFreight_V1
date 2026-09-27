@@ -333,6 +333,7 @@ async def seed_all(session: AsyncSession) -> None:
 
         shipment = Shipment(
             id=s_data["id"],
+            provenance=Provenance.SIMULATED,
             origin_id=o_loc.id,
             destination_id=d_loc.id,
             primary_transport_mode=s_data["mode"],

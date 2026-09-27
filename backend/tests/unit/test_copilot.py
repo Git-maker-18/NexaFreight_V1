@@ -14,7 +14,6 @@ from nexafreight.services.copilot import (
     needs_llm,
 )
 
-pytestmark = pytest.mark.asyncio
 
 NOW = datetime.now(UTC)
 
@@ -93,8 +92,8 @@ async def test_demurrage_payload_rule(
         db_session, shipment=shipment, question="What is the demurrage on this shipment?"
     )
     assert result["source"] == "rules"
-    # 6 days dwell → 2 billable days × $150 × 2 containers = $600
-    assert "$600" in result["answer"]
+    # 6 days dwell → 2 billable days × $57.4 (Rs5,500 / fx 95.8) × 2 boxes = $230
+    assert "$230" in result["answer"]
 
 
 async def test_llm_path_calls_adapter_and_audits(

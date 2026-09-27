@@ -1,0 +1,33 @@
+{
+  "generated_at": "2026-09-24T10:31:59.772428+00:00",
+  "tool": "searoute marine graph",
+  "results": {
+    "INJNP->NLRTM": {
+      "suez_nm": 6380.1,
+      "cape_nm": 10847.8,
+      "ratio": 1.7003,
+      "added_hours": 198.75,
+      "ref": 1.72,
+      "tol": 0.15,
+      "pass": true
+    },
+    "INMUN->NLRTM": {
+      "suez_nm": 6366.4,
+      "cape_nm": 11045.1,
+      "ratio": 1.7349,
+      "added_hours": 208.8,
+      "ref": 1.72,
+      "tol": 0.15,
+      "pass": true
+    },
+    "SGSIN->NLRTM": {
+      "suez_nm": 8382.9,
+      "cape_nm": 10440.7,
+      "ratio": 1.2455,
+      "added_hours": 83.99,
+      "ref": 1.25,
+      "tol": 0.08,
+      "pass": true
+    }
+  }
+}

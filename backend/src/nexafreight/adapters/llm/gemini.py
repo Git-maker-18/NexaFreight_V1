@@ -1,4 +1,4 @@
-"""Gemini 1.5 Flash LLM adapter for the AI copilot (Definitive Plan Phase 7).
+"""Gemini Flash LLM adapter for the AI copilot (Definitive Plan Phase 7).
 
 NEVER raises — returns None on any error so callers fall back to
 rule-based answers. Needs `google-generativeai` installed at runtime to
@@ -22,7 +22,10 @@ class GeminiAdapter:
     def __init__(self, model_name: str | None = None, api_key: str | None = None):
         """Create adapter from env config; model resolved lazily."""
         self._api_key = api_key or os.getenv("GEMINI_API_KEY", "")
-        self._model_name = model_name or os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+        # gemini-2.0-flash: 1.5 models are retired for newer API keys (404 on
+        # generate) — the default tracks a currently served model; override
+        # with GEMINI_MODEL.
+        self._model_name = model_name or os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
         self._model = None
 
     @property

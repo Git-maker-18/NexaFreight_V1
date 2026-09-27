@@ -12,6 +12,7 @@ from nexafreight.api.routes import (
     decisions,
     disruptions,
     health,
+    plan,
     predictions,
     shipments,
 )
@@ -85,4 +86,11 @@ api_router.include_router(
     copilot.router,
     prefix="/copilot",
     tags=["copilot"],
+)
+
+# Multimodal route planning (schedule-aware optimizer)
+api_router.include_router(
+    plan.router,
+    prefix="/plan",
+    tags=["planning"],
 )

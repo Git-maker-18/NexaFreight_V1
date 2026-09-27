@@ -64,15 +64,17 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 from datetime import UTC, datetime, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import delete, select
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from nexafreight.database import dialect_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from nexafreight.adapters.protocols import AssetPosition, Provenance
 from nexafreight.config import get_settings
+from nexafreight.core.clock import world_now
 from nexafreight.database import get_session_factory
 from nexafreight.enums import LegStatus, TransportMode
 from nexafreight.models.leg import Leg
@@ -164,7 +166,9 @@ class _LegData:
 
 async def _query_active_legs(session: AsyncSession) -> list[_LegData]:
     """
-    Query all IN_PROGRESS ROAD and AIR legs from the database.
+    Query all IN_PROGRESS legs the interpolator can move (ROAD, AIR, SEA,
+    RAIL — task-7 integration: the demo world drips all four modes; frozen
+    SEA/RAIL made the map lie by omission).
 
     Returns an empty list on any database error (logs warning).
     Does not hold the ORM objects after the session closes — extracts
@@ -191,7 +195,20 @@ async def _query_active_legs(session: AsyncSession) -> list[_LegData]:
                 Leg.actual_departure,
             )
             .where((Leg.status == LegStatus.IN_PROGRESS) | (Leg.status == "IN_PROGRESS"))
-            .where(Leg.transport_mode.in_([TransportMode.ROAD, TransportMode.AIR, "ROAD", "AIR"]))
+            .where(
+                Leg.transport_mode.in_(
+                    [
+                        TransportMode.ROAD,
+                        TransportMode.AIR,
+                        TransportMode.SEA,
+                        TransportMode.RAIL,
+                        "ROAD",
+                        "AIR",
+                        "SEA",
+                        "RAIL",
+                    ]
+                )
+            )
         )
         result = await session.execute(stmt)
         rows = result.all()
@@ -304,6 +321,80 @@ def _compute_duration(leg: _LegData) -> float | None:
 # ---------------------------------------------------------------------------
 
 
+def _interpolate_linear(leg: _LegData, now: datetime, geometry: str) -> AssetPosition | None:
+    """Deterministic great-circle mover for SEA/RAIL legs (task-7 integration).
+
+    ROAD/AIR use the feed adapters (TruckSim/ReplayFlight); SEA/RAIL get this
+    simpler honest mover: walk the densified geometry by time-fraction.
+    Speed is derived (distance/duration → knots), heading from the current
+    segment bearing. Returns None before departure / after arrival, matching
+    the adapter contract.
+    """
+    coords = json.loads(geometry).get("coordinates", []) if geometry else []
+    if len(coords) < 2:
+        return None
+    departure = leg.actual_departure or leg.planned_departure
+    if departure is None:
+        return None
+    if departure.tzinfo is None:
+        departure = departure.replace(tzinfo=UTC)
+    if now < departure:
+        return None
+    if leg.planned_arrival is not None:
+        arrival = leg.planned_arrival if leg.planned_arrival.tzinfo else leg.planned_arrival.replace(tzinfo=UTC)
+        if now >= arrival:
+            return None
+
+    duration_s = _compute_duration(leg)
+    if not duration_s or duration_s <= 0:
+        return None
+    progress = min(1.0, max(0.0, (now - departure).total_seconds() / duration_s))
+
+    # Walk cumulative segment lengths to locate the position at `progress`.
+    seg_len: list[float] = []
+    total = 0.0
+    for (lon1, lat1), (lon2, lat2) in zip(coords, coords[1:]):
+        d = math.hypot(lon2 - lon1, lat2 - lat1)  # degrees; uniform-ish densification
+        seg_len.append(d)
+        total += d
+    if total <= 0:
+        return None
+    target = progress * total
+    acc = 0.0
+    lon, lat = coords[0]
+    heading = None
+    for i, d in enumerate(seg_len):
+        if acc + d >= target or i == len(seg_len) - 1:
+            frac = 0.0 if d == 0 else (target - acc) / d
+            lon = coords[i][0] + (coords[i + 1][0] - coords[i][0]) * frac
+            lat = coords[i][1] + (coords[i + 1][1] - coords[i][1]) * frac
+            if d > 0:
+                heading = (math.degrees(math.atan2(coords[i + 1][0] - coords[i][0], coords[i + 1][1] - coords[i][1]))) % 360.0
+            break
+        acc += d
+
+    # Derived speed: great-circle km over duration, expressed in knots.
+    (lon1, lat1), (lon2, lat2) = coords[0], coords[-1]
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlmb / 2) ** 2
+    km = 6371.0 * 2 * math.asin(math.sqrt(a))
+    kmh = km / (duration_s / 3600.0)
+
+    return AssetPosition(
+        asset_id=str(leg.leg_id),
+        asset_type=TransportMode(leg.mode),
+        lat=round(lat, 5),
+        lon=round(lon, 5),
+        speed_knots=round(kmh / 1.852, 1),
+        heading_deg=round(heading, 1) if heading is not None else None,
+        reported_at=now,
+        provenance=Provenance.SIMULATED,
+        source="linear_interpolator",
+    )
+
+
 async def _interpolate_leg(
     leg: _LegData,
     now: datetime,
@@ -368,6 +459,18 @@ async def _interpolate_leg(
             )
             positions = await flight_adapter.get_current_positions()
             await flight_adapter.stop()
+
+        elif leg.mode in ("SEA", "RAIL"):
+            # Task-7 integration: deterministic linear mover (see docstring).
+            # NOTE: this dispatch must stay in sync with _query_active_legs.
+            pos = _interpolate_linear(leg, now, geometry)
+            if pos is None:
+                logger.debug(
+                    "Linear mover: no position for leg %d (before departure or after arrival).",
+                    leg.leg_id,
+                )
+                return None
+            return pos
 
         else:
             logger.warning("Unexpected leg mode %r for leg %d.", leg.mode, leg.leg_id)
@@ -435,7 +538,7 @@ async def _write_position(
                 else str(Provenance.SIMULATED)
             )
             stmt = (
-                sqlite_insert(PositionReport)
+                dialect_insert(PositionReport)
                 .values(
                     leg_id=leg_id,
                     asset_type=asset_type_val,
@@ -509,7 +612,7 @@ async def _run_interpolation_job(session: AsyncSession | None = None) -> None:
     disrupted by a single failed run. Each failed run logs at ERROR level
     with a full traceback.
     """
-    now = datetime.now(UTC)
+    now = world_now()  # Time-World seam (task 6/7): warp 1.0 → real time
     logger.debug("Position interpolator job starting at %s.", now.isoformat())
 
     positions_written = 0

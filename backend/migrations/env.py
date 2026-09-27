@@ -85,26 +85,37 @@ async def run_async_migrations() -> None:
     configuration["sqlalchemy.url"] = settings.database_url
 
     # Create async engine with NullPool for migrations
+    # PgBouncer transaction mode (e.g. Neon pooled endpoint) is
+    # incompatible with cached prepared statements.  Values must be
+    # INTs - the URL string form crashes asyncpg at connect.
+    migration_connect_args = (
+        {"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+        if settings.database_url.startswith("postgresql+asyncpg")
+        else {}
+    )
     connectable = async_engine_from_config(
         configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=migration_connect_args,
     )
 
-    # Apply SQLite-specific pragmas on connect
-    is_memory = ":memory:" in settings.database_url
+    # Apply SQLite-specific pragmas on connect (skip for PostgreSQL)
+    is_sqlite = settings.database_url.startswith("sqlite")
+    if is_sqlite:
+        is_memory = ":memory:" in settings.database_url
 
-    @event.listens_for(connectable.sync_engine, "connect")
-    def set_sqlite_pragmas(dbapi_conn: Any, connection_record: Any) -> None:
-        cursor = dbapi_conn.cursor()
-        try:
-            if not is_memory:
-                cursor.execute("PRAGMA journal_mode=WAL")
-            cursor.execute("PRAGMA foreign_keys=ON")
-            cursor.execute("PRAGMA synchronous=NORMAL")
-            cursor.execute("PRAGMA busy_timeout=5000")
-        finally:
-            cursor.close()
+        @event.listens_for(connectable.sync_engine, "connect")
+        def set_sqlite_pragmas(dbapi_conn: Any, connection_record: Any) -> None:
+            cursor = dbapi_conn.cursor()
+            try:
+                if not is_memory:
+                    cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.execute("PRAGMA synchronous=NORMAL")
+                cursor.execute("PRAGMA busy_timeout=5000")
+            finally:
+                cursor.close()
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

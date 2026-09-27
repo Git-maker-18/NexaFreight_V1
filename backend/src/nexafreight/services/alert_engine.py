@@ -41,13 +41,13 @@ from nexafreight.enums import (
     OrderSlaStatus,
     ShipmentStatus,
 )
+from nexafreight.core import params
 from nexafreight.models import Alert, Disruption, Order, Shipment
 from nexafreight.services.financial_engine import (
     DEMURRAGE_DAILY_RATE,
     DEMURRAGE_FREE_DAYS,
-    SLA_PENALTY_PCT_PER_DAY,
     calculate_demurrage,
-    calculate_sla_penalty,
+    calculate_sla_penalty_weekly,
 )
 
 logger = logging.getLogger(__name__)
@@ -150,9 +150,11 @@ async def check_sla_breaches(
             continue
 
         days_late = max(1, math.ceil((revised_eta - deadline).total_seconds() / 86400.0))
-        penalty = calculate_sla_penalty(
+        # LD norms (calibration batch): 0.5% per week, WEEKLY rounding, cap 10%
+        penalty = calculate_sla_penalty_weekly(
             revenue=order.revenue,
-            penalty_pct=SLA_PENALTY_PCT_PER_DAY,
+            pct_per_week=params.get_float("sla.penalty_pct_per_week", 0.5) / 100.0,
+            cap_pct=params.get_float("sla.penalty_cap_pct", 10.0) / 100.0,
             days_late=days_late,
         )
         penalty_total += penalty
@@ -180,10 +182,15 @@ def estimate_demurrage(shipment: Shipment, estimated_delay_hours: float) -> floa
     Containers sit free for DEMURRAGE_FREE_DAYS, then pay per container.
     """
     delay_days = math.ceil(estimated_delay_hours / 24.0)
+    free_days = int(params.get_int("demurrage.free_days", DEMURRAGE_FREE_DAYS))
+    # ₹5,500/box/day (JNPT band mid) converted at the market FX param
+    daily_rate_usd = params.get_float("demurrage.rate_inr_per_box_day", 5500.0) / params.get_float(
+        "fx.usd_inr", 88.0
+    )
     per_container = calculate_demurrage(
         extra_days=delay_days,
-        free_days=DEMURRAGE_FREE_DAYS,
-        daily_rate=DEMURRAGE_DAILY_RATE,
+        free_days=free_days,
+        daily_rate=daily_rate_usd,
     )
     return per_container * max(1, shipment.container_count)
 

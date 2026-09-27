@@ -275,6 +275,7 @@ def _parse_position_report(
     message: dict[str, Any],
     now: datetime,
     configured_mmsis: frozenset[str],
+    bbox_active: bool = False,
 ) -> AssetPosition | None:
     """Parse an AISStream message dict into an AssetPosition, or return None.
 
@@ -296,8 +297,8 @@ def _parse_position_report(
     if mmsi is None:
         logger.debug("Skipping AIS message: MMSI could not be extracted.")
         return None
-    if mmsi not in configured_mmsis:
-        # Defensive: feed may send unsolicited MMSIs.
+    if mmsi not in configured_mmsis and not bbox_active:
+        # Defensive: feed may send unsolicited MMSIs unless bbox is active.
         logger.debug("Ignoring unsolicited MMSI %s.", mmsi)
         return None
 
@@ -341,6 +342,7 @@ def _parse_position_report(
 def _build_subscription_payload(
     api_key_value: str,
     mmsis: frozenset[str],
+    bbox_json: str | None = None,
 ) -> str:
     """Build the JSON subscription message for AISStream.
 
@@ -348,11 +350,21 @@ def _build_subscription_payload(
     This function is called only at subscription time; the key is never
     stored in module state after this call returns.
     """
-    payload = {
+    payload: dict[str, Any] = {
         "APIKey": api_key_value,
-        "FiltersShipMMSI": sorted(mmsis),  # deterministic ordering
         "FilterMessageTypes": ["PositionReport"],
     }
+    
+    if bbox_json:
+        try:
+            bbox_list = json.loads(bbox_json)
+            payload["BoundingBox"] = bbox_list
+        except Exception as e:
+            logger.error(f"Failed to parse bbox JSON: {e}")
+            payload["FiltersShipMMSI"] = sorted(mmsis)
+    else:
+        payload["FiltersShipMMSI"] = sorted(mmsis)
+        
     return json.dumps(payload)
 
 
@@ -402,6 +414,7 @@ class AISStreamAdapter:
         mmsis: list[str] | set[str],
         *,
         api_key: str | None = None,
+        bbox_json: str | None = None,
         ws_url: str = _AISSTREAM_URL,
         connection_factory: ConnectionFactory | None = None,
         sleep_fn: AsyncSleepFn | None = None,
@@ -413,6 +426,8 @@ class AISStreamAdapter:
         # Injected or plain-string key (tests only).
         # None means "read from Settings at start() time".
         self._injected_api_key: str | None = api_key
+        
+        self._bbox_json: str | None = bbox_json
 
         self._ws_url: str = ws_url
 
@@ -634,7 +649,7 @@ class AISStreamAdapter:
         )
 
         # Build subscription payload here; key is used and then discarded.
-        subscription_json = _build_subscription_payload(api_key, self._mmsis)
+        subscription_json = _build_subscription_payload(api_key, self._mmsis, self._bbox_json)
 
         async with self._connection_factory(
             self._ws_url,
@@ -701,7 +716,8 @@ class AISStreamAdapter:
         now = self._now_fn()
 
         # Attempt to parse as a PositionReport.
-        position = _parse_position_report(message, now, self._mmsis)
+        bbox_active = bool(self._bbox_json)
+        position = _parse_position_report(message, now, self._mmsis, bbox_active)
         if position is None:
             # Not a PositionReport or invalid — non-fatal, do not count.
             return
@@ -709,6 +725,9 @@ class AISStreamAdapter:
         # Valid position: update cache and counters.
         async with self._lock:
             self._state.cache[position.asset_id] = position
+            # Cap cache at 5000 vessels
+            if len(self._state.cache) > 5000:
+                self._state.cache.pop(next(iter(self._state.cache)))
             self._state.messages_received += 1
             self._state.last_success_at = now
             # Reset backoff only after a valid position is received.

@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: nexafreight-backend
+    runtime: image
+    plan: free
+    region: singapore
+    image:
+      url: ghcr.io/rajmontana/nexafreight-backend:latest-amd64
+    healthCheckPath: /healthz
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+
+# Stage A (wave 1b): backend only. Frontend needs NEXT_PUBLIC_API_URL baked
+# at image build time (build-arg plumbing) - deferred to a follow-up wave.

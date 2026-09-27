@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from nexafreight.enums import CargoClass, OrderSlaStatus, TransportMode
 from nexafreight.models import Order, Shipment
-from nexafreight.services.consolidation import consolidate_orders
+from nexafreight.services.consolidation import OrderView, consolidate_orders
 
 
 def _week_of(dt: datetime) -> int:
@@ -164,7 +164,8 @@ async def test_strictest_sla_computation(db_session: AsyncSession) -> None:
 async def test_capacity_limit_splits_shipments(db_session: AsyncSession) -> None:
     """Exceeding container capacity splits into multiple shipments."""
     base_time = datetime(2024, 1, 3, tzinfo=UTC)
-    # Create 25 orders (implementation allows max 20 containers, each order=1 container)
+    # 25 unmeasured STANDARD orders: nominal 5,000 kg / 6 m3 each -> 5 fit
+    # in one SEA container (25 t / 30 m3); the 6th would exceed 28 t.
     for i in range(25):
         o = Order(
             order_number=f"ORD-CAP-{i}",
@@ -183,15 +184,19 @@ async def test_capacity_limit_splits_shipments(db_session: AsyncSession) -> None
 
     shipments = await consolidate_orders(db_session)
 
-    # 25 orders / 20 per shipment = 2 shipments (20 + 5)
-    assert len(shipments) == 2
+    # Capacity binds before the legacy 20-order cap: 25 / 5 = 5 shipments
+    assert len(shipments) == 5
     counts = [s.container_count for s in shipments]
-    assert sum(counts) == 25, "Total containers across shipments must be 25"
+    assert all(c == 1 for c in counts), "Each 25 t chunk fits one container"
 
 
 @pytest.mark.asyncio
 async def test_container_count_correctness(db_session: AsyncSession) -> None:
-    """Container count on shipment matches number of grouped orders."""
+    """Container count follows the capacity math (E13), not order count.
+
+    5 orders x (5,000 kg, 5 m3) = 25 t / 25 m3 — one SEA container holds
+    all five (28 t / 33 m3), where the old count math demanded five.
+    """
     base_time = datetime(2024, 1, 3, tzinfo=UTC)
     for i in range(5):
         o = Order(
@@ -205,6 +210,8 @@ async def test_container_count_correctness(db_session: AsyncSession) -> None:
             origin_id=1,
             destination_id=2,
             created_at=base_time,
+            weight_kg=5_000.0,
+            volume_m3=5.0,
         )
         db_session.add(o)
     await db_session.commit()
@@ -212,7 +219,112 @@ async def test_container_count_correctness(db_session: AsyncSession) -> None:
     shipments = await consolidate_orders(db_session)
 
     assert len(shipments) == 1
-    assert shipments[0].container_count == 5
+    assert shipments[0].container_count == 1
+
+
+@pytest.mark.asyncio
+async def test_oversized_order_gets_multiple_containers(db_session: AsyncSession) -> None:
+    """E13 acceptance: container counts respect tonnage (90 t -> 4 SEA boxes)."""
+    base_time = datetime(2024, 1, 3, tzinfo=UTC)
+    o = Order(
+        order_number="ORD-HEAVY",
+        sla_deadline=base_time + timedelta(days=30),
+        revenue=9000.0,
+        shipping_cost=900.0,
+        sla_status=OrderSlaStatus.ON_TIME,
+        shipping_mode=TransportMode.SEA,
+        cargo_class=CargoClass.STANDARD,
+        origin_id=1,
+        destination_id=2,
+        created_at=base_time,
+        weight_kg=90_000.0,
+        volume_m3=10.0,
+    )
+    db_session.add(o)
+    await db_session.commit()
+
+    shipments = await consolidate_orders(db_session)
+
+    assert len(shipments) == 1
+    assert shipments[0].container_count == 4  # ceil(90_000 / 28_000)
+
+
+@pytest.mark.asyncio
+async def test_container_count_respects_tonnage() -> None:
+    """A single 90 t order needs 4 SEA containers (E13 acceptance)."""
+    from nexafreight.services.consolidation import containers_for_total
+
+    assert containers_for_total(90_000.0, 1.0, "SEA") == 4
+    assert containers_for_total(27_000.0, 1.0, "SEA") == 1
+    assert containers_for_total(1.0, 66.0, "SEA") == 2  # cube-bound
+    # Unknown mode falls back to the SEA (default) capacity.
+    assert containers_for_total(30_000.0, 0.0, "PIPELINE") == 2
+
+
+@pytest.mark.asyncio
+async def test_capacity_chunking_splits_heavy_group() -> None:
+    """Groups split on capacity, not only the 20-order cap (E13)."""
+    from nexafreight.services.consolidation import ShipmentSpec, _consolidate_orders_sync
+
+    base = datetime(2024, 1, 3, tzinfo=UTC)
+    orders = [
+        OrderView(
+            id=i,
+            order_number=f"ORD-HV-{i}",
+            origin_country_code="US",
+            dest_country_code="NL",
+            shipping_mode="SEA",
+            cargo_class="STANDARD",
+            order_date=base,
+            sla_deadline=base + timedelta(days=10),
+            revenue=1_000.0,
+            shipping_cost=100.0,
+            weight_kg=10_000.0,  # 10 t each: only 2 fit a 28 t container
+            volume_m3=1.0,
+        )
+        for i in range(25)
+    ]
+
+    specs = _consolidate_orders_sync(orders, {}, default_origin_id=1, default_dest_id=2)
+
+    # 2 orders per shipment (20 t <= 28 t; 30 t would exceed) -> 13 chunks
+    assert len(specs) == 13
+    assert all(len(s.order_ids) <= 2 for s in specs)
+    # Each 20 t chunk fits one container
+    assert all(s.container_count == 1 for s in specs)
+
+
+@pytest.mark.asyncio
+async def test_nominal_fallback_when_unmeasured() -> None:
+    """Orders without measurements use cargo-class nominals (documented)."""
+    from nexafreight.services.consolidation import (
+        NOMINAL_ORDER_LOAD,
+        ShipmentSpec,
+        _consolidate_orders_sync,
+        effective_load,
+    )
+
+    assert effective_load(None, None, "REFRIGERATED") == NOMINAL_ORDER_LOAD["REFRIGERATED"]
+    assert effective_load(1_000.0, None, "HAZMAT")[0] == 1_000.0  # measurement wins
+
+    base = datetime(2024, 1, 3, tzinfo=UTC)
+    one = OrderView(
+        id=1,
+        order_number="ORD-NOM-1",
+        origin_country_code="US",
+        dest_country_code="NL",
+        shipping_mode="SEA",
+        cargo_class="REFRIGERATED",
+        order_date=base,
+        sla_deadline=base + timedelta(days=10),
+        revenue=1_000.0,
+        shipping_cost=100.0,
+        weight_kg=None,
+        volume_m3=None,
+    )
+    specs = _consolidate_orders_sync([one], {}, default_origin_id=1, default_dest_id=2)
+    assert len(specs) == 1
+    assert specs[0].container_count == 1  # 8 t / 14 m3 fits one container
 
 
 @pytest.mark.asyncio

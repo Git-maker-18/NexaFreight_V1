@@ -7,10 +7,9 @@ import logging
 from dataclasses import dataclass
 
 from ._geometry import great_circle_geojson_str, haversine_km
+from nexafreight.core import params
 
 log = logging.getLogger("nexafreight.routing.road")
-DEFAULT_TRUCK_SPEED_KMH = 65.0
-ROAD_CIRCUITY_FACTOR = 1.35
 
 
 @dataclass
@@ -38,6 +37,7 @@ class RoadRouter:
         self,
         origin: tuple[float, float],
         dest: tuple[float, float],
+        corridor_class: str | None = None,
     ) -> RoadRouteResult:
         olat, olon = origin
         dlat, dlon = dest
@@ -69,10 +69,17 @@ class RoadRouter:
             except Exception as exc:
                 log.warning("OpenRouteService API call failed (%s); using road fallback", exc)
 
-        # Fallback: Great-circle distance scaled by road circuity factor (1.35)
+        # Fallback: Great-circle distance scaled by corridor or default road circuity factor
         direct_km = haversine_km(olat, olon, dlat, dlon)
-        dist_km = direct_km * ROAD_CIRCUITY_FACTOR
-        duration_s = (dist_km / DEFAULT_TRUCK_SPEED_KMH) * 3600.0
+        circ_key = f"road.circuity.{corridor_class}" if corridor_class else "road.circuity.default"
+        circuity = params.get_float(circ_key)
+        dist_km = direct_km * circuity
+        speed_key = f"road.speed.{corridor_class}" if corridor_class else "road.speed.default"
+        speed = params.get_float(speed_key)
+        engine_h = (dist_km / speed) if speed > 0 else 0.0
+        halt_rate = params.get_float("road.halt_allowance_h_per_4_5h", 0.75)
+        halt_h = (engine_h / 4.5) * halt_rate if engine_h > 0 else 0.0
+        duration_s = (engine_h + halt_h) * 3600.0
         geom = great_circle_geojson_str(olat, olon, dlat, dlon, n=16)
 
         return RoadRouteResult(

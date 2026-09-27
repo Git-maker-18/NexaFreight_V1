@@ -6,7 +6,6 @@ from sqlalchemy import select
 
 from nexafreight.models.user import User
 
-pytestmark = pytest.mark.asyncio
 
 
 async def test_health_endpoint(client: AsyncClient):

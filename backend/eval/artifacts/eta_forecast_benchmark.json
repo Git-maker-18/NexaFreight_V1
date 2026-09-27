@@ -1,0 +1,25 @@
+{
+  "metrics": {
+    "p10_coverage": 0.09939573313602171,
+    "p50_coverage": 0.5286718460969293,
+    "p85_coverage": 0.8477000863238378,
+    "naive_p10_coverage": 0.32852386237513875,
+    "naive_p50_coverage": 0.6639536317671723,
+    "naive_p85_coverage": 1.0,
+    "p50_rmse": 1.297374828694451,
+    "naive_p50_rmse": 1.2961424310729979
+  },
+  "split_sizes": {
+    "train": 44179,
+    "val": 9893,
+    "test": 8109
+  },
+  "sha256_first16": "fa6d022ed437155e",
+  "quantile_levels": [
+    0.1,
+    0.5,
+    0.85
+  ],
+  "review_spec": "EVALUATION_REVIEW 2.1",
+  "timestamp": "2026-09-26T18:20:33.847045+00:00"
+}

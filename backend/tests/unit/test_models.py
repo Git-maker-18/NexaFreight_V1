@@ -66,8 +66,19 @@ async def test_all_models_registered_in_metadata():
         "disruptions",
         "alerts",
         "corridor_alternatives",
+        "decision_outcomes",
+        "parties",
         "decisions",
         "audit_logs",
+        "parameter_policy",
+        "parameter_empirical",
+        "network_nodes",
+        "network_edges",
+        "edge_schedules",
+        "transshipment_links",
+        "route_plans",
+        "route_legs",
+        "external_events",
     }
     # Import models to populate metadata
     import nexafreight.models  # noqa: F401
@@ -161,6 +172,7 @@ async def test_complete_entity_graph_insertion():
 
         # 6. Create shipment
         shipment = Shipment(
+            provenance=Provenance.SIMULATED,
             origin_id=origin.id,
             destination_id=destination.id,
             primary_transport_mode=TransportMode.SEA,
@@ -362,6 +374,7 @@ async def test_unique_constraint_duplicate_active_disruption():
         await session.flush()
 
         shipment = Shipment(
+            provenance=Provenance.SIMULATED,
             origin_id=origin.id,
             destination_id=origin.id,
             primary_transport_mode=TransportMode.SEA,
@@ -436,6 +449,7 @@ async def test_unique_constraint_one_alert_per_disruption():
         await session.flush()
 
         shipment = Shipment(
+            provenance=Provenance.SIMULATED,
             origin_id=origin.id,
             destination_id=origin.id,
             primary_transport_mode=TransportMode.SEA,
@@ -507,6 +521,7 @@ async def test_unique_constraint_one_decision_per_alert():
         await session.flush()
 
         shipment = Shipment(
+            provenance=Provenance.SIMULATED,
             origin_id=origin.id,
             destination_id=origin.id,
             primary_transport_mode=TransportMode.SEA,
@@ -637,6 +652,7 @@ async def test_default_values_behave_correctly():
 
         # Shipment without explicit status or route_version
         shipment = Shipment(
+            provenance=Provenance.SIMULATED,
             origin_id=origin.id,
             destination_id=origin.id,
             primary_transport_mode=TransportMode.SEA,

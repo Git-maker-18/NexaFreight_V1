@@ -26,7 +26,6 @@ from nexafreight.services.alert_engine import (
     resolve_disruption,
 )
 
-pytestmark = pytest.mark.asyncio
 
 NOW = datetime.now(UTC)
 
@@ -84,11 +83,11 @@ async def test_process_disruption_breach_alert_payload(
     breach = payload["breaches"][0]
     assert breach["order_number"] == order.order_number
     assert breach["days_late"] == 1
-    # 50000 × 5% × 1 = 2500 (under the 10% cap)
-    assert breach["penalty_usd"] == 2500.0
-    assert alert.financial_exposure == 2500.0
-    # breaching → HIGH band (>= $2500)
-    assert str(alert.severity) == "HIGH"
+    # LD norms: 1 day late = 1 part-week → 50000 × 0.5% × 1 = 250 (was 2500)
+    assert breach["penalty_usd"] == 250.0
+    assert alert.financial_exposure == 250.0
+    # breaching floor keeps it MEDIUM (exposure 250 < $500 MEDIUM band)
+    assert str(alert.severity) == "MEDIUM"
 
 
 async def test_process_disruption_is_idempotent(
@@ -139,7 +138,7 @@ async def test_check_sla_breaches_flags_order_late(
     breaches, penalty = await check_sla_breaches(db_session, shipment, revised)
     await db_session.commit()
     assert len(breaches) == 1
-    assert penalty == 2500.0
+    assert penalty == 250.0  # 50000 × 0.5% × 1 part-week (LD norms)
     assert str(order.sla_status) == OrderSlaStatus.LATE
     assert str(shipment.status) == ShipmentStatus.DELAYED
 
@@ -177,5 +176,5 @@ def test_estimate_demurrage_scaling() -> None:
         container_count = 2
 
     assert estimate_demurrage(_Sh(), 24.0) == 0.0  # 1 day < 4 free
-    # 5 days → 1 billable day × $150 × 2 containers = 300
-    assert estimate_demurrage(_Sh(), 24.0 * 5) == 300.0
+    # 5 days -> 1 billable day x (Rs5,500 / fx 95.8) x 2 containers
+    assert estimate_demurrage(_Sh(), 24.0 * 5) == pytest.approx(5500.0 / 95.8 * 2)

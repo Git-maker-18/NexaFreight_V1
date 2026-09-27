@@ -13,7 +13,6 @@ from nexafreight.exceptions import ResourceNotFoundError
 from nexafreight.models import Alert, CorridorAlternative, Disruption
 from nexafreight.services.reroute_engine import generate_options
 
-pytestmark = pytest.mark.asyncio
 
 NOW = datetime.now(UTC)
 
@@ -139,7 +138,10 @@ async def test_recommendation_is_single_and_lowest_impact(
     options = await generate_options(db_session, fx["alert"], now=NOW)
     recommended = [o for o in options if o.recommended]
     assert len(recommended) == 1
-    assert recommended[0].option_key == "VIA_PIRAEUS"
+    # Calibrated LD norms (0.5%/week) shrink ACCEPT's penalty ~20x, so absorbing
+    # a 2-day delay now beats a +20% freight divert — the DOCUMENTED behavioral
+    # flip from the audit (5%/day biased every decision toward REROUTE).
+    assert recommended[0].option_key == "ACCEPT_DELAY"
     assert recommended[0].total_impact_usd == min(o.total_impact_usd for o in options)
 
 
@@ -151,11 +153,12 @@ async def test_accept_delay_option_math(
     options = await generate_options(db_session, fx["alert"], now=NOW)
     accept = options[0]
     assert accept.cost_delta_usd == 0.0
-    # 50h + base ETA → 2 days past deadline → 20000 × 5% × 2 = 2000
-    assert accept.sla_penalty_usd == 2_000.0
+    # 50h + base ETA → 2 days past deadline → LD norms: 1 part-week
+    # 20000 × 0.5% × 1 = 100 (was 20000 × 5%/day × 2 = 2000)
+    assert accept.sla_penalty_usd == 100.0
     # 3 days delay < 4 demurrage free days → 0
     assert accept.demurrage_usd == 0.0
-    assert accept.total_impact_usd == 2_000.0
+    assert accept.total_impact_usd == 100.0
     # ETA = latest planned arrival (NOW+10d6h) + 50h = NOW+12d8h
     expected_eta = fx["leg"].planned_arrival + timedelta(hours=50)
     assert accept.revised_eta == expected_eta.replace(tzinfo=None) or accept.revised_eta.replace(tzinfo=None) == expected_eta.replace(tzinfo=None)
@@ -197,16 +200,16 @@ async def test_divert_corridor_financial_math(
 
     options = await generate_options(db_session, fx["alert"], now=NOW)
     divert = options[1]
-    # freight: 5000km × 28t × $0.02 = 2800 → ×1.2 ⇒ Δ 560
-    assert divert.cost_delta_usd == pytest.approx(560.0)
-    # co2: 6.5 g/t-km × 5000 × 28 /1000 = 910 kg → ×1.1 ⇒ Δ91 kg → $7.28
-    assert divert.co2_delta_kg == pytest.approx(91.0)
-    assert divert.carbon_cost_usd == pytest.approx(7.28)
-    # ETA has 30h added → crosses deadline by 6h → 1 day late → 1000
-    assert divert.sla_penalty_usd == 1_000.0
+    # freight: 5000km × 28t × $0.012 (calibrated SEA) = 1680; factor 1.2 ⇒ Δ = 0.2 × 1680 = 336
+    assert divert.cost_delta_usd == pytest.approx(336.0)
+    # co2: 8.0 g/t-km × 5000 × 28 /1000 = 1120 kg; ×1.1 detour ⇒ Δ = 112 kg → $8.96
+    assert divert.co2_delta_kg == pytest.approx(112.0)
+    assert divert.carbon_cost_usd == pytest.approx(8.96)
+    # ETA has 30h added → crosses deadline by 6h → 1 part-week → 20000 × 0.5% = 100
+    assert divert.sla_penalty_usd == 100.0
     # 2 days < 4 demurrage free days
     assert divert.demurrage_usd == 0.0
-    assert divert.total_impact_usd == pytest.approx(1567.28)
+    assert divert.total_impact_usd == pytest.approx(336.0 + 8.96 + 100.0)
     assert divert.route_template is not None
 
 
@@ -220,8 +223,8 @@ async def test_generic_fallback_when_no_corridor_matches(
     options = await generate_options(db_session, fx["alert"], now=NOW)
     divert = options[1]
     assert divert.option_key == "DIVERT_GENERIC"
-    assert divert.route_template is None  # placeholder — not executable
-    assert any("generic" in a.lower() for a in divert.assumptions)
+    assert "legs" in divert.route_template
+    assert len(divert.route_template["legs"]) >= 1
 
 
 async def test_modal_shift_option_math(
@@ -232,13 +235,14 @@ async def test_modal_shift_option_math(
     options = await generate_options(db_session, fx["alert"], now=NOW)
     modal = options[2]
     assert modal.option_key == "MODAL_SHIFT_AIR"
-    # air: 1.8 × 5000 × 28 = 252000 vs sea 2800 → Δ 249200
-    assert modal.cost_delta_usd == pytest.approx(249_200.0)
-    # co2: (500 − 6.5) g/t-km × 5000 × 28 /1000 = 69090 kg
-    assert modal.co2_delta_kg == pytest.approx(69_090.0)
+    # air: 0.9 × 5000 × 28 = 126000 vs sea 1680 → Δ 124320 (NCAER-anchored rates)
+    assert modal.cost_delta_usd == pytest.approx(124_320.0)
+    # co2: (500 − 8.0) g/t-km × 5000 × 28 /1000 = 68880 kg
+    assert modal.co2_delta_kg == pytest.approx(68_880.0)
     # air ETA = now + 5000/800 + 12h → ~18h — well before the deadline
     assert modal.sla_penalty_usd == 0.0
-    assert modal.total_impact_usd > 200_000.0
+    # Δfreight 124320 + carbon 5527.20 + insurance delta 99 (20000 × 1.1 × 0.45%)
+    assert modal.total_impact_usd == pytest.approx(124_320.0 + 5_510.4 + 99.0)
 
 
 async def test_modal_shift_revised_eta_uses_now_as_anchor(
@@ -247,8 +251,13 @@ async def test_modal_shift_revised_eta_uses_now_as_anchor(
     fx = await _traffic_jam(db_session, make_shipment, make_order, make_leg, make_location)
     options = await generate_options(db_session, fx["alert"], now=NOW)
     modal = options[2]
-    # 5000/800 + 12 = 18.25h from now
-    assert modal.revised_eta == NOW + timedelta(hours=18.25)
+    from nexafreight.core import params
+    speed = params.get_float("air.cruise_speed_kmh", 860.0)
+    taxi = params.get_float("air.taxi_hours", 0.3)
+    climb = params.get_float("air.climb_descent_hours", 0.4)
+    handling = params.get_float("air.handling_hours", 12.0)
+    transit_hours = 5000 / speed + taxi + climb + handling
+    assert modal.revised_eta == NOW + timedelta(hours=transit_hours)
 
 
 async def test_options_for_shipment_without_orders(

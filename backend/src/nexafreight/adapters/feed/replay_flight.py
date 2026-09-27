@@ -108,7 +108,12 @@ class ReplayFlightAdapter:
                 heading = _calculate_bearing(lat, lon, next_point.y, next_point.x)
 
             # Approximate flight speed in knots (~800 km/h = 432 knots)
-            speed_knots = 432.0
+            # Calibrated cruise (task 5): air.cruise_speed_kmh / 1.852
+            from nexafreight.core import params as _params
+
+            speed_knots = round(
+                _params.get_float("air.cruise_speed_kmh", 860.0) / 1.852, 1
+            )
 
             positions.append(
                 AssetPosition(

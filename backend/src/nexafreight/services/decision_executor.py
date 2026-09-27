@@ -41,6 +41,7 @@ from nexafreight.exceptions import (
     ValidationError,
 )
 from nexafreight.models import (
+    DecisionOutcome,
     Alert,
     AuditLog,
     Decision,
@@ -52,23 +53,21 @@ from nexafreight.models import (
 )
 from nexafreight.services.reroute_engine import RerouteOption, generate_options
 
+from nexafreight.core import params
+
 logger = logging.getLogger(__name__)
 
-#: Planning speeds used to schedule replacement legs (km/h).
-MODE_SPEED_KMH: dict[str, float] = {
-    "SEA": 41.0,
-    "AIR": 800.0,
-    "ROAD": 70.0,
-    "RAIL": 60.0,
-}
+SUPPORTED_MODES: set[str] = {"SEA", "AIR", "ROAD", "RAIL"}
 
-#: Distance inflation per mode (great-circle → real route).
-MODE_CIRCUITY: dict[str, float] = {
-    "SEA": 1.15,
-    "AIR": 1.05,
-    "ROAD": 1.20,
-    "RAIL": 1.10,
-}
+
+def get_mode_speed(mode: str) -> float:
+    """Return effective speed for mode via parameters."""
+    return params.get_float(f"mode.speed.{mode.lower()}")
+
+
+def get_mode_circuity(mode: str) -> float:
+    """Return circuity multiplier for mode via parameters."""
+    return params.get_float(f"mode.circuity.{mode.lower()}")
 
 #: Template sentinel for the shipment's final destination.
 DESTINATION_SENTINEL = "DESTINATION"
@@ -95,7 +94,7 @@ def routed_distance_km(origin: Location, destination: Location, mode: str) -> fl
     gc = haversine_km(
         origin.latitude, origin.longitude, destination.latitude, destination.longitude
     )
-    return gc * MODE_CIRCUITY.get(mode, MODE_CIRCUITY["SEA"])
+    return gc * get_mode_circuity(mode)
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +164,7 @@ async def _create_new_legs(
     for idx, tpl in enumerate(template_legs):
         is_final = idx == len(template_legs) - 1
         mode = str(tpl["mode"]).upper()
-        if mode not in MODE_SPEED_KMH:
+        if mode not in SUPPORTED_MODES:
             raise ValidationError(f"Unsupported transport mode in template: {mode!r}")
 
         to_locode = tpl.get("to")
@@ -180,7 +179,8 @@ async def _create_new_legs(
                 raise ResourceNotFoundError("Location", str(to_locode))
 
         distance = routed_distance_km(cursor, to_loc, mode)
-        duration_hours = distance / MODE_SPEED_KMH[mode]
+        speed = get_mode_speed(mode)
+        duration_hours = (distance / speed) if speed > 0 else 0.0
         co2 = calculate_co2_kg(distance, weight_t, mode)
 
         seq += 1
@@ -220,6 +220,11 @@ async def _create_new_legs(
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
+
+def _aware_dt(dt: datetime) -> datetime:
+    """SQLite-friendly tz normalization (E26 pattern)."""
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 async def execute_decision(
@@ -268,6 +273,16 @@ async def execute_decision(
 
     route_before = shipment.route_version
     route_after = route_before
+    # Baseline for the outcome row: final planned arrival of the plan as it
+    # stands at decision time (replaced legs keep planned_arrival, so this is
+    # stable for REROUTE too).
+    pre_legs = (
+        await session.execute(select(Leg).where(Leg.shipment_id == shipment.id))
+    ).scalars().all()
+    pre_planned = [
+        _aware_dt(l.planned_arrival) for l in pre_legs if l.planned_arrival is not None
+    ]
+    baseline_arrival = max(pre_planned) if pre_planned else None
     if chosen.action is DecisionAction.REROUTE:
         route_after = route_before + 1
         replaced = await _replace_old_legs(session, shipment.id)
@@ -323,6 +338,31 @@ async def execute_decision(
                     "route_version_after": route_after,
                 }
             ),
+        )
+    )
+    # Task 12: freeze the predicted picture + recommendation into a
+    # learnable outcome row (phase 1; phase 2 runs at shipment delivery).
+    recommended = next((o for o in options if o.recommended), None)
+    override = None
+    if recommended is not None and recommended.option_key != chosen.option_key:
+        override = (
+            f"operator chose {chosen.option_key} over recommended "
+            f"{recommended.option_key}"
+        )
+    session.add(
+        DecisionOutcome(
+            decision_id=decision.id,
+            shipment_id=shipment.id,
+            chosen_option_key=chosen.option_key,
+            recommended_option_key=recommended.option_key if recommended else None,
+            override_reason=override,
+            predicted_total_impact_usd=round(chosen.total_impact_usd, 2),
+            predicted_cost_delta_usd=round(chosen.cost_delta_usd, 2),
+            predicted_sla_usd=round(chosen.sla_penalty_usd, 2),
+            predicted_demurrage_usd=round(chosen.demurrage_usd, 2),
+            predicted_carbon_usd=round(chosen.carbon_cost_usd, 2),
+            predicted_revised_eta=chosen.revised_eta,
+            baseline_planned_arrival=baseline_arrival,
         )
     )
     await session.flush()

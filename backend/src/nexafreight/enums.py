@@ -18,6 +18,9 @@ class Provenance(StrEnum):
     - CALIBRATED: Real data adjusted for known systematic errors
     - SIMULATED: Synthetic data from simulation engines
     - MOCK: Fake data for development/testing purposes
+    - HISTORICAL: Historical reference data (e.g., 2015–2018 parcel-era
+      ingest) kept for ML training and era-filtered analytics — never part
+      of the active demo world
     """
 
     REAL = "REAL"
@@ -26,6 +29,7 @@ class Provenance(StrEnum):
     CALIBRATED = "CALIBRATED"
     SIMULATED = "SIMULATED"
     MOCK = "MOCK"
+    HISTORICAL = "HISTORICAL"
 
 
 class UserRole(StrEnum):
@@ -149,3 +153,44 @@ class OrderSlaStatus(StrEnum):
     ON_TIME = "ON_TIME"
     AT_RISK = "AT_RISK"
     LATE = "LATE"
+
+
+class PartyRole(StrEnum):
+    """Role of a demo supply-chain party (Task 18)."""
+
+    SHIPPER = "SHIPPER"
+    CONSIGNEE = "CONSIGNEE"
+    CARRIER = "CARRIER"
+
+
+class NodeType(StrEnum):
+    """Type of network node in the multimodal logistics graph."""
+
+    PORT = "PORT"
+    AIRPORT = "AIRPORT"
+    RAIL_TERMINAL = "RAIL_TERMINAL"
+    ICD = "ICD"
+    ROAD_HUB = "ROAD_HUB"
+    RIVER_TERMINAL = "RIVER_TERMINAL"
+
+
+class ShipmentPriority(StrEnum):
+    """Business priority level driving objective weight profiles in the planner."""
+
+    CRITICAL = "CRITICAL"
+    EXPRESS = "EXPRESS"
+    STANDARD = "STANDARD"
+    ECONOMY = "ECONOMY"
+
+
+class PlanType(StrEnum):
+    """Lifecycle category of a route plan.
+
+    - INITIAL: Generated at shipment creation.
+    - ALTERNATIVE: Generated on demand to show options.
+    - RECOVERY: Generated from the current node after a disruption.
+    """
+
+    INITIAL = "INITIAL"
+    ALTERNATIVE = "ALTERNATIVE"
+    RECOVERY = "RECOVERY"

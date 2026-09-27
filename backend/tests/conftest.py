@@ -24,7 +24,9 @@ in-memory SQLite or explicitly tmp_path-isolated file databases.
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Awaitable, Callable
+import asyncio
+import os
+from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -33,7 +35,7 @@ import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from nexafreight.auth import create_access_token, hash_password
@@ -55,21 +57,67 @@ from nexafreight.enums import (
     UserRole,
 )
 from nexafreight.main import create_app
-from nexafreight.models import Leg, Location, Order, Shipment, User
+from nexafreight.models import Base, Leg, Location, Order, Shipment, User
 
 # ============================================================================
 # DATABASE FIXTURES
 # ============================================================================
 
 
+# ---------------------------------------------------------------------------
+# Persistent-Postgres (CI postgres-suite) shared schema
+# ---------------------------------------------------------------------------
+# When DATABASE_URL points at Postgres (CI postgres-suite job), per-test
+# drop/create DDL is unsafe: asyncpg's cached prepared statements are
+# invalidated by the churn, teardown races leave stale tables behind, and
+# seeded rows leak into later tests.  Instead the schema is created ONCE per
+# session and each test resets data via TRUNCATE ... RESTART IDENTITY
+# CASCADE (no DDL).  The engine uses NullPool, so connections are minted on
+# whichever event loop checks them out (no cross-loop affinity).
+# SQLite runs (no DATABASE_URL) keep the original per-test in-memory path.
+
+_PG_TABLE_TRUNCATE_SQL = ""
+
+
+@pytest.fixture(scope="session")
+def _pg_shared_engine() -> Generator[AsyncEngine | None, None, None]:
+    """Session-scoped Postgres engine + schema, or None when on SQLite."""
+    global _PG_TABLE_TRUNCATE_SQL
+    url = os.environ.get("DATABASE_URL", "")
+    if not url.startswith("postgresql"):
+        yield None
+        return
+    engine = create_test_engine(url)
+    asyncio.run(create_all_tables(engine))
+    _PG_TABLE_TRUNCATE_SQL = "TRUNCATE " + ", ".join(
+        f'"{t.name}"' for t in reversed(Base.metadata.sorted_tables)
+    ) + " RESTART IDENTITY CASCADE"
+    yield engine
+    asyncio.run(drop_all_tables(engine))
+    asyncio.run(engine.dispose())
+
+
 @pytest_asyncio.fixture
-async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Provide a clean in-memory SQLite engine for each test.
+async def test_engine(
+    test_settings: Settings, _pg_shared_engine: AsyncEngine | None
+) -> AsyncGenerator[AsyncEngine, None]:
+    """Provide a clean test database engine.
 
     Scope: function (fresh schema per test for complete isolation).
     Cleanup: drops all tables and disposes engine after test completes.
+    Postgres: schema is session-scoped; data is TRUNCATEd per test instead.
     """
-    engine = create_test_engine("sqlite+aiosqlite:///:memory:")
+    if _pg_shared_engine is not None:
+        async with _pg_shared_engine.begin() as conn:
+            await conn.execute(text(_PG_TABLE_TRUNCATE_SQL))
+        yield _pg_shared_engine
+        return
+
+    url = test_settings.database_url
+    if url.startswith("sqlite") and "memory" not in url:
+        url = "sqlite+aiosqlite:///:memory:"
+
+    engine = create_test_engine(url)
     await create_all_tables(engine)
     yield engine
     await drop_all_tables(engine)
@@ -299,6 +347,8 @@ async def make_shipment(
     db_session: AsyncSession,
     make_location: Callable[..., Awaitable[Location]],
 ) -> Callable[..., Awaitable[Shipment]]:
+    from nexafreight.enums import Provenance
+
     """Factory for creating test Shipment entities.
 
     Automatically creates origin/destination locations if not provided.
@@ -318,6 +368,7 @@ async def make_shipment(
         status: ShipmentStatus = ShipmentStatus.PLANNED,
         container_count: int = 1,
         route_version: int = 1,
+        provenance: Provenance = Provenance.SIMULATED,
     ) -> Shipment:
         if origin is None:
             origin = await make_location(locode="USNYC", name="New York")
@@ -332,6 +383,7 @@ async def make_shipment(
             status=status,
             container_count=container_count,
             route_version=route_version,
+            provenance=provenance,
         )
         db_session.add(shipment)
         await db_session.commit()
@@ -442,3 +494,19 @@ async def make_leg(
         return leg
 
     return _make
+
+@pytest.fixture
+def graph_cache():
+    """Fresh GraphCache instance per test."""
+    from nexafreight.services.planner import GraphCache
+    return GraphCache()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_graph_cache_autouse():
+    from nexafreight.services import planner
+    old = planner._CACHE
+    planner._CACHE = planner.GraphCache()
+    yield
+    planner._CACHE = old
+

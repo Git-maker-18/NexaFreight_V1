@@ -1,0 +1,16 @@
+{
+  "metrics": {
+    "median_mase": 0.7285,
+    "pooled_mase": 0.6985,
+    "lanes_mase_le1": 63,
+    "lanes_total": 79
+  },
+  "split_sizes": {
+    "train_weeks_median": 29,
+    "holdout_weeks": 13,
+    "total_qualified_lanes": 79
+  },
+  "sha256_first16": "fa6d022ed437155e",
+  "review_spec": "EVALUATION_REVIEW 2.1",
+  "timestamp": "2026-09-26T19:01:02.166823+00:00"
+}

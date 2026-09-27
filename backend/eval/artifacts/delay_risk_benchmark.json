@@ -1,0 +1,157 @@
+{
+  "dataset": {
+    "path": "C:\\Users\\RAJ KUMAR MERUGU\\Downloads\\nexagithub\\NexaFreight-fresh\\backend\\data\\raw\\dataco\\DataCoSupplyChain.csv",
+    "sha256_first16": "fa6d022ed437155e",
+    "rows_total": 180519,
+    "rows_scored": 27387,
+    "late_rate": 0.5727928916069777,
+    "order_count": 65752
+  },
+  "split": {
+    "seed": 42,
+    "method": "GroupShuffle by Order Id",
+    "train_orders": 46026,
+    "train_rows": 126095,
+    "val_orders": 9863,
+    "val_rows": 27037,
+    "test_orders": 9863,
+    "test_rows": 27387
+  },
+  "allowlist": [
+    "Type",
+    "Days for shipment (scheduled)",
+    "Shipping Mode",
+    "Market",
+    "Order Region",
+    "Order Country",
+    "Customer Segment",
+    "Category Id",
+    "Product Price",
+    "Product Status",
+    "Order Item Quantity",
+    "Sales per customer",
+    "Order Item Discount"
+  ],
+  "leak_columns": [
+    "Late_delivery_risk",
+    "Delivery Status",
+    "Days for shipping (real)",
+    "shipping date (DateOrders)",
+    "Order Status"
+  ],
+  "models": {
+    "M0_majority": {
+      "accuracy": 0.5744331252053895,
+      "f1": 0.7297015236902525,
+      "roc_auc": 0.5,
+      "pr_auc": 0.5744331252053895,
+      "brier": 0.24447420923605634
+    },
+    "M1_rate": {
+      "accuracy": 0.5744331252053895,
+      "f1": 0.7297015236902525,
+      "roc_auc": 0.5,
+      "pr_auc": 0.5744331252053895,
+      "brier": 0.24447420923605634
+    },
+    "M2_logistic": {
+      "accuracy": 0.6996020009493555,
+      "f1": 0.6778652257331924,
+      "roc_auc": 0.7450777790976113,
+      "pr_auc": 0.8382446793681273,
+      "brier": 0.18717518307933226
+    },
+    "M3_lgbm": {
+      "accuracy": 0.7011720889473108,
+      "f1": 0.6808610201216659,
+      "roc_auc": 0.7449017394860262,
+      "pr_auc": 0.8321143277592356,
+      "brier": 0.18806537341755822
+    }
+  },
+  "best_model": "M2_logistic",
+  "calibration": [
+    {
+      "bin": 1,
+      "bin_start": 0.0,
+      "bin_end": 0.1,
+      "count": 0,
+      "mean_predicted": 0.0,
+      "empirical_rate": 0.0
+    },
+    {
+      "bin": 2,
+      "bin_start": 0.1,
+      "bin_end": 0.2,
+      "count": 0,
+      "mean_predicted": 0.0,
+      "empirical_rate": 0.0
+    },
+    {
+      "bin": 3,
+      "bin_start": 0.2,
+      "bin_end": 0.30000000000000004,
+      "count": 88,
+      "mean_predicted": 0.2577282115136035,
+      "empirical_rate": 0.4431818181818182
+    },
+    {
+      "bin": 4,
+      "bin_start": 0.30000000000000004,
+      "bin_end": 0.4,
+      "count": 9047,
+      "mean_predicted": 0.3844244421109555,
+      "empirical_rate": 0.3941638112081353
+    },
+    {
+      "bin": 5,
+      "bin_start": 0.4,
+      "bin_end": 0.5,
+      "count": 8445,
+      "mean_predicted": 0.4237135178944258,
+      "empirical_rate": 0.41101243339253996
+    },
+    {
+      "bin": 6,
+      "bin_start": 0.5,
+      "bin_end": 0.6000000000000001,
+      "count": 102,
+      "mean_predicted": 0.5180972828434733,
+      "empirical_rate": 0.4803921568627451
+    },
+    {
+      "bin": 7,
+      "bin_start": 0.6000000000000001,
+      "bin_end": 0.7000000000000001,
+      "count": 22,
+      "mean_predicted": 0.6761912635108196,
+      "empirical_rate": 0.7727272727272727
+    },
+    {
+      "bin": 8,
+      "bin_start": 0.7000000000000001,
+      "bin_end": 0.8,
+      "count": 3246,
+      "mean_predicted": 0.7886361413078528,
+      "empirical_rate": 0.7985212569316081
+    },
+    {
+      "bin": 9,
+      "bin_start": 0.8,
+      "bin_end": 0.9,
+      "count": 2123,
+      "mean_predicted": 0.8097209044396504,
+      "empirical_rate": 0.7932171455487518
+    },
+    {
+      "bin": 10,
+      "bin_start": 0.9,
+      "bin_end": 1.0,
+      "count": 4314,
+      "mean_predicted": 0.9999064526704519,
+      "empirical_rate": 1.0
+    }
+  ],
+  "verdict": "OK",
+  "leakage_reference_band": "0.978-0.993 (published; leakage-inflated)"
+}

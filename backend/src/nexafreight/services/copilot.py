@@ -191,74 +191,94 @@ async def answer_shipment_question(
     await session.refresh(shipment, ["legs", "orders", "alerts", "origin", "destination"])
 
     context = load_shipment_context(shipment)
-    source = "rules"
+    
+    # 1. Deterministic Facts
+    base_eta_status = _rules_answer(shipment)
+    base_demurrage = _demurrage_answer(shipment)
 
-    if needs_llm(question):
-        source = "rules_fallback"  # assume fallback until the LLM answers
+    # FAST PATH: If question is purely status/demurrage, skip LLM to save latency/cost
+    q_lower = question.lower()
+    if "arrive" in q_lower or "sla" in q_lower or "eta" in q_lower or "status" in q_lower:
+        return {"answer": base_eta_status, "source": "rules", "provenance": "DERIVED"}
+    if "demurrage" in q_lower or "fee" in q_lower:
+        return {"answer": base_demurrage, "source": "rules", "provenance": "DERIVED"}
 
-        if adapter is None:
-            # Build adapter chain from Settings so config values are respected.
-            from nexafreight.adapters.llm.gemini import GeminiAdapter
-            from nexafreight.adapters.llm.ollama import OllamaAdapter
-            from nexafreight.config import get_settings
+    # 2. Try LLM first for complex questions (Hybrid RAG Pattern)
+    source = "rules_fallback"  # assume fallback until the LLM answers
 
-            _settings = get_settings()
-            _gemini_key = (
-                _settings.gemini_api_key.get_secret_value()
-                if _settings.gemini_api_key
-                else None
-            )
-            gemini = GeminiAdapter(
-                model_name=_settings.gemini_model,
-                api_key=_gemini_key,
-            )
-            ollama = OllamaAdapter(
-                base_url=_settings.ollama_base_url,
-                model=_settings.ollama_model,
-            )
-            # Prefer Gemini; fall through to Ollama if unavailable.
-            adapter = gemini if gemini.available else ollama
+    if adapter is None:
+        # Build adapter chain from Settings so config values are respected.
+        from nexafreight.adapters.llm.gemini import GeminiAdapter
+        from nexafreight.adapters.llm.ollama import OllamaAdapter
+        from nexafreight.config import get_settings
 
-        prompt = (
-            "You are the NexaFreight shipment copilot. Answer the operator's "
-            "question using only the context below.\n\n"
-            f"CONTEXT (JSON):\n{context}\n\n"
-            f"QUESTION: {question}\n\n"
-            "Answer in 3 short paragraphs or fewer, concrete and financial."
+        _settings = get_settings()
+        _gemini_key = (
+            _settings.gemini_api_key.get_secret_value()
+            if _settings.gemini_api_key
+            else None
         )
-
-        if getattr(adapter, "available", False):
-            answer = await adapter.complete(prompt)
-            if answer:
-                source = "llm"
-                _record_llm_audit(
-                    session,
-                    shipment=shipment,
-                    question=question,
-                    answer=answer,
-                    user=user,
-                )
-                await session.commit()
-                return {"answer": answer, "source": source, "provenance": "DERIVED"}
-
-        # All LLM adapters failed or unavailable — fall back to rule answer.
-        answer = _rules_answer(shipment)
-        _record_llm_audit(
-            session,
-            shipment=shipment,
-            question=question,
-            answer=answer,
-            user=user,
-            note="all_llm_unavailable_fallback",
+        gemini = GeminiAdapter(
+            model_name=_settings.gemini_model,
+            api_key=_gemini_key,
         )
-        await session.commit()
-        return {"answer": answer, "source": source, "provenance": "DERIVED"}
+        ollama = OllamaAdapter(
+            base_url=_settings.ollama_base_url,
+            model=_settings.ollama_model,
+        )
+        # Prefer Gemini; fall through to Ollama if unavailable.
+        adapter = gemini if gemini.available else ollama
 
+    prompt = (
+        "You are the NexaFreight AI Copilot. You must provide highly professional, descriptive, "
+        "and analytical answers to the operator's questions.\n\n"
+        "FORMATTING RULES:\n"
+        "1. Never give one-word answers. Use proper wording and structure.\n"
+        "2. When calculating or analyzing, use descriptive formats like 'Calculation matrix:' or Markdown tables.\n"
+        "3. Incorporate the SYSTEM COMPUTED FACTS below into your response exactly as provided when relevant.\n\n"
+        "STYLE DIRECTIVE:\n"
+        "Answer in short paragraphs. Use Markdown bolding for section labels. When numbers appear, cite them from SYSTEM COMPUTED FACTS or SHIPMENT DATA verbatim - never invent or estimate figures.\n\n"
+        f"SYSTEM COMPUTED FACTS:\n- Delivery Status: {base_eta_status}\n- Demurrage: {base_demurrage}\n\n"
+        f"SHIPMENT DATA (JSON):\n{context}\n\n"
+        f"QUESTION: {question}\n"
+    )
+
+    if getattr(adapter, "available", False):
+        answer = await adapter.complete(prompt)
+        if answer:
+            source = "llm"
+            _record_llm_audit(
+                session,
+                shipment=shipment,
+                question=question,
+                answer=answer,
+                user=user,
+            )
+            await session.commit()
+            return {"answer": answer, "source": source, "provenance": "DERIVED"}
+
+    # 3. All LLM adapters failed or unavailable — fall back to rule answer.
+    logger.warning(
+        "Copilot LLM unavailable via %s; serving rules_fallback "
+        "(check GEMINI_API_KEY / GEMINI_MODEL; free-tier keys need the "
+        "Generative Language API enabled)",
+        type(adapter).__name__,
+    )
     if "demurrage" in (question or "").lower():
-        answer = _demurrage_answer(shipment)
+        answer = base_demurrage
     else:
-        answer = _rules_answer(shipment)
-    return {"answer": answer, "source": "rules", "provenance": "DERIVED"}
+        answer = base_eta_status
+        
+    _record_llm_audit(
+        session,
+        shipment=shipment,
+        question=question,
+        answer=answer,
+        user=user,
+        note="all_llm_unavailable_fallback",
+    )
+    await session.commit()
+    return {"answer": answer, "source": source, "provenance": "DERIVED"}
 
 
 def _record_llm_audit(

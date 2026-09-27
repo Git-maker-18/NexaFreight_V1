@@ -255,9 +255,10 @@ async def persist_plans(
     log.info("Connecting to database: %s", db_url)
     engine = create_async_engine(
         db_url,
-        connect_args={"check_same_thread": False, "timeout": 60},
+        connect_args=({"check_same_thread": False, "timeout": 60} if db_url.startswith("sqlite") else {}),
     )
-    event.listen(engine.sync_engine, "connect", _set_sqlite_pragmas)
+    if db_url.startswith("sqlite"):
+        event.listen(engine.sync_engine, "connect", _set_sqlite_pragmas)
 
     try:
         async with engine.begin() as conn:

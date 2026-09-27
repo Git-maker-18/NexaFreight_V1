@@ -37,14 +37,33 @@ def registry() -> ModelRegistry:
 @pytest.fixture(scope="module")
 def client(registry: ModelRegistry) -> TestClient:
     """Create a test client with the registry wired into app state."""
-    from fastapi import FastAPI
+    from fastapi import FastAPI, HTTPException
 
     from nexafreight.api.routes.predictions import router
+    from nexafreight.dependencies import get_current_user
+    from nexafreight.models import User
 
     app = FastAPI()
     app.state.ml_registry = registry
+    
+    # Mock get_current_user to check for a token
+    def mock_get_current_user(authorization: str | None = None):
+        if not authorization:
+            raise HTTPException(status_code=401, detail="Missing authentication token")
+        if authorization == "Bearer viewer-token":
+            return User(id=1, email="viewer@test.com", role="VIEWER")
+        return User(id=1, email="test@test.com", role="OPERATOR")
+
+    # Use depends so FastAPI extracts the header
+    from fastapi import Header
+    def get_current_user_override(authorization: str | None = Header(default=None)):
+        return mock_get_current_user(authorization)
+
+    app.dependency_overrides[get_current_user] = get_current_user_override
     app.include_router(router)
-    return TestClient(app)
+    # Default client includes a valid token so existing tests pass
+    return TestClient(app, headers={"Authorization": "Bearer operator-token"})
+
 
 
 @pytest.fixture()
@@ -123,6 +142,11 @@ class TestDelayEndpoint:
         resp = client.post("/predict/delay", json={"shipping_mode": "SEA"})
         assert resp.status_code == 422
 
+    def test_unauthenticated_returns_401(self, client: TestClient, valid_features: dict) -> None:
+        # Clear the default authorization header
+        resp = client.post("/predict/delay", json=valid_features, headers={"Authorization": ""})
+        assert resp.status_code == 401
+
 
 # ---------------------------------------------------------------------------
 # POST /predict/eta
@@ -158,6 +182,10 @@ class TestEtaEndpoint:
         data = client.post("/predict/eta", json=valid_features).json()
         assert "context" in data
         assert data["context"] is None
+
+    def test_unauthenticated_returns_401(self, client: TestClient, valid_features: dict) -> None:
+        resp = client.post("/predict/eta", json=valid_features, headers={"Authorization": ""})
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -229,3 +257,23 @@ class TestDemandEndpoint:
         ).json()
         assert "context" in data
         assert data["context"] is None
+
+    def test_unauthenticated_returns_401(self, client: TestClient, registry: ModelRegistry) -> None:
+        dm = registry.get_demand_model()
+        lane = dm.available_lanes[0]
+        resp = client.get(
+            "/demand/forecast",
+            params={"category": lane["category"], "region": lane["region"]},
+            headers={"Authorization": ""}
+        )
+        assert resp.status_code == 401
+
+    def test_viewer_token_returns_200(self, client: TestClient, registry: ModelRegistry) -> None:
+        dm = registry.get_demand_model()
+        lane = dm.available_lanes[0]
+        resp = client.get(
+            "/demand/forecast",
+            params={"category": lane["category"], "region": lane["region"]},
+            headers={"Authorization": "Bearer viewer-token"}
+        )
+        assert resp.status_code == 200

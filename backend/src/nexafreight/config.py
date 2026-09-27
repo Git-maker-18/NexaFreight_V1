@@ -22,6 +22,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,  # ENV vars are case-insensitive
         extra="ignore",  # ignore unknown env vars (don't fail)
+        populate_by_name=True,
     )
 
     # --- Core App Settings ---
@@ -30,6 +31,13 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False)
 
     # --- Database ---
+    # If DATABASE_URL is set (e.g. postgresql+asyncpg://...), it takes
+    # precedence.  Otherwise the URL is built from DATABASE_PATH (SQLite).
+    database_url_override: str | None = Field(
+        default=None,
+        validation_alias="DATABASE_URL",
+        description="Full async database URL.  Set for cloud Postgres; leave unset for local SQLite.",
+    )
     database_path: Path = Field(default=Path("./data/nexafreight.db"))
     test_database_path: Path = Field(default=Path(":memory:"))  # or ./data/test.db
 
@@ -46,6 +54,12 @@ class Settings(BaseSettings):
     )
 
     # --- External APIs (all optional/free-tier) ---
+    nightly_secret: SecretStr | None = Field(
+        default=None,
+        validation_alias="NIGHTLY_SECRET",
+        description="HMAC key for POST /internal/nightly (wave 2). Leave unset to disable the endpoint.",
+    )
+
     # AIS Stream WebSocket & Replay
     enable_ais_listener: bool = Field(
         default=True,
@@ -72,6 +86,10 @@ class Settings(BaseSettings):
         default=None,
         description="Path to Parquet files for AIS replay (used when use_live_ais=False)",
     )
+    ais_bounding_boxes: str = Field(
+        default="",
+        description="JSON string defining bounding boxes for AIS Stream (e.g. [[[-90, -180], [90, 180]]])",
+    )
     aisstream_api_key: SecretStr | None = Field(default=None)
     ors_api_key: SecretStr | None = Field(
         default=None,
@@ -90,7 +108,27 @@ class Settings(BaseSettings):
     # --- Computed Properties ---
     @property
     def database_url(self) -> str:
-        """Async SQLite URL for main database."""
+        """Async database URL.  Prefers DATABASE_URL env; falls back to SQLite.
+
+        A postgres:// or postgresql:// override (as given by Neon and most
+        Postgres hosts) is upgraded to the asyncpg driver with ssl=require
+        (Neon enforces TLS).  Idempotent: any existing query string on the
+        override is replaced, not appended to.
+
+        NOTE: asyncpg statement-cache disables are NOT set here.  They must
+        be typed INTs (asyncpg rejects the string form of its native
+        statement_cache_size with TypeError at connect), so they live in
+        connect_args at the engine build sites: database.py and
+        migrations/env.py.
+        """
+        override = self.database_url_override
+        if override:
+            scheme, _, remainder = override.partition("://")
+            if scheme.lower() in ("postgres", "postgresql"):
+                host_part = remainder.split("?", 1)[0]
+                return f"postgresql+asyncpg://{host_part}?ssl=require"
+            return override
+        # Local SQLite fallback
         if self.database_path == Path(":memory:"):
             return "sqlite+aiosqlite:///:memory:"
         posix = self.database_path.as_posix()

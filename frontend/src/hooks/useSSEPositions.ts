@@ -38,8 +38,19 @@ export interface UseSSEPositionsReturn {
  * Constructs the direct SSE endpoint URL with token parameter.
  */
 export function buildSSEUrl(apiUrl: string = BASE_URL, token?: string | null): string {
-  const cleanBase = apiUrl.replace(/\/$/, '')
-  const url = new URL(`${cleanBase}/api/map/positions/stream`)
+  // Path-prefix mode (reverse-proxy deployments): a base starting with '/'
+  // (e.g. NEXT_PUBLIC_NEXA_API_URL='/api/nexa' + the Next rewrite
+  // /api/nexa/:path* -> backend /api/:path*) already carries the API prefix,
+  // so only the route tail is appended — the browser never needs the
+  // backend's own host:port.
+  let url: URL
+  if (apiUrl.startsWith('/')) {
+    const origin =
+      typeof window !== 'undefined' ? window.location.origin : 'http://localhost' // SSR/tests
+    url = new URL(`${apiUrl.replace(/\/$/, '')}/map/positions/stream`, origin)
+  } else {
+    url = new URL(`${apiUrl.replace(/\/$/, '')}/api/map/positions/stream`)
+  }
   if (token) {
     url.searchParams.set('token', token)
   }
@@ -134,7 +145,7 @@ export function useSSEPositions(
 
   const esRef = useRef<EventSource | null>(null)
   const positionsRef = useRef<Record<string, PositionReport>>(positions)
-  positionsRef.current = positions
+  useEffect(() => { positionsRef.current = positions }, [positions])
 
   useEffect(() => {
     // Only run on the client

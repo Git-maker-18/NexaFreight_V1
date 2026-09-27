@@ -30,6 +30,9 @@ def test_settings(
     """Provide test settings with isolated database."""
     db_path = tmp_path / "test_auth.db"
     monkeypatch.setenv("DATABASE_PATH", str(db_path))
+    # These tests verify the SQLite migration path; drop any exported
+    # DATABASE_URL so the shared Postgres database is never touched here.
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.setenv("JWT_SECRET", "test-jwt-secret-for-integration-tests")
     monkeypatch.setenv("JWT_ALGORITHM", "HS256")
     monkeypatch.setenv("JWT_EXPIRY_MINUTES", "30")
@@ -51,7 +54,8 @@ def test_settings(
 @pytest.fixture
 def migrated_db(test_settings: Settings) -> None:
     """Run migrations on test database."""
-    env = {**os.environ, "DATABASE_PATH": str(test_settings.database_path)}
+    env = {k: v for k, v in os.environ.items() if k != "DATABASE_URL"}
+    env["DATABASE_PATH"] = str(test_settings.database_path)
     result = subprocess.run(
         [sys.executable, "-m", "alembic", "upgrade", "head"],
         capture_output=True,

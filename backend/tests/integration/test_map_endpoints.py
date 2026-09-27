@@ -54,7 +54,6 @@ from nexafreight.routers.map import (
 )
 from nexafreight.workers.ais_listener import PositionTracker
 
-pytestmark = pytest.mark.asyncio
 
 # ---------------------------------------------------------------------------
 # Test constants

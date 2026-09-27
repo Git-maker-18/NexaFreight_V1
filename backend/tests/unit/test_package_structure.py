@@ -52,6 +52,8 @@ assert "apscheduler" not in sys.modules, "apscheduler loaded unexpectedly"
 import logging
 assert len(logging.getLogger().handlers) == 0, "Root logger handlers configured"
 """
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    src_dir = Path(__file__).resolve().parent.parent.parent / "src"
+    env = {**os.environ, "PYTHONPATH": str(src_dir)}
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env)
     msg = f"Clean import check failed:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     assert result.returncode == 0, msg

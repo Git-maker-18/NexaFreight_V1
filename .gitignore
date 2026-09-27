@@ -53,3 +53,7 @@ data/
 
 # Local backend env files with dev secrets
 backend/.env
+
+*.patch
+audit_tmp/
+AUDIT_REPORT.md

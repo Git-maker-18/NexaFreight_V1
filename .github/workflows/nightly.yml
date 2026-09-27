@@ -1,0 +1,42 @@
+name: Nightly ingestion
+
+on:
+  schedule:
+    - cron: "30 1 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  trigger-nightly:
+    name: POST /internal/nightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute timestamp and HMAC signature
+        env:
+          NEXA_NIGHTLY_SECRET: ${{ secrets.NEXA_NIGHTLY_SECRET }}
+        run: |
+          TS="$(date +%s)"
+          SIG="$(TS="$TS" NEXA_NIGHTLY_SECRET="$NEXA_NIGHTLY_SECRET" python3 -c 'import os, hmac, hashlib; print(hmac.new(os.environ["NEXA_NIGHTLY_SECRET"].encode(), os.environ["TS"].encode(), hashlib.sha256).hexdigest())')"
+          echo "TS=$TS" >> "$GITHUB_ENV"
+          echo "SIG=$SIG" >> "$GITHUB_ENV"
+
+      - name: Trigger nightly endpoint
+        env:
+          NEXA_NIGHTLY_URL: ${{ secrets.NEXA_NIGHTLY_URL }}
+        run: |
+          HTTP_CODE="$(curl -sS -o /tmp/nightly_response.json -w '%{http_code}' --max-time 240 --retry 2 --retry-delay 15 -X POST "$NEXA_NIGHTLY_URL/internal/nightly" -H "X-Nexa-Timestamp: $TS" -H "X-Nexa-Signature: $SIG")"
+          echo "HTTP $HTTP_CODE"
+          cat /tmp/nightly_response.json
+          echo ""
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::nightly endpoint returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Surface per-job failures as warnings
+        run: |
+          if grep -q '"status":"error"' /tmp/nightly_response.json || grep -q '"status": "error"' /tmp/nightly_response.json; then
+            echo "::warning::one or more nightly jobs reported errors - inspect the response above"
+          fi
