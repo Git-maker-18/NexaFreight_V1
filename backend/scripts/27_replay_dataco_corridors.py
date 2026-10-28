@@ -44,12 +44,14 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("replay_dataco")
 
 CORRIDORS = [
-    ("USNYC", "NLRTM", set(), {"Northern Europe", "Western Europe"}),
-    ("CNSHA", "USLAX", set(), {"Western US", "Eastern US", "Canada"}),
+    ("USNYC", "NLRTM", set(), {"Northern Europe", "Western Europe", "Southern Europe"}),
+    ("CNSHA", "USLAX", set(), {"Western US", "Eastern US", "Canada", "West of USA", "East of USA", "US Center", "South of  USA"}),
     ("SGSIN", "JPTYO", set(), {"Eastern Asia"}),
     ("INJNP", "SGSIN", set(), {"Southeast Asia"}),
-    ("AEBUE", "ZADUR", set(), {"Africa"}),
-    ("BRSSZ", "AUSYD", set(), {"Oceania"}),
+    ("INJNP", "INTKG", set(), {"South Asia"}),
+    ("AEBUE", "ZADUR", set(), {"Africa", "West Africa", "North Africa", "East Africa", "Central Africa", "Southern Africa"}),
+    ("BRSSZ", "ZADUR", set(), {"South America", "Central America", "Caribbean"}),
+    ("SGSIN", "AUSYD", set(), {"Oceania"}),
     ("DEHAM", "NLRTM", set(), {"Eastern Europe"}),
 ]
 
@@ -128,7 +130,13 @@ async def run(args):
         in_transit = 0
         skipped = 0
         
+        live_mix = getattr(args, "live_mix", False)
+        in_transit_ratio = getattr(args, "in_transit_ratio", 0.45)
+        delayed_ratio = getattr(args, "delayed_ratio", 0.15)
+        delivered_ratio = getattr(args, "delivered_ratio", 0.25)
+
         count = 0
+        delayed_count = 0
         for (o, d), idxs in top_lanes:
             if count >= args.limit:
                 break
@@ -144,10 +152,22 @@ async def run(args):
                 if citation in existing:
                     continue
                     
-                order_date = world - timedelta(days=rng.randint(1, args.days_back))
                 scheduled = int(row["Days for shipment (scheduled)"])
                 real = int(row["Days for shipping (real)"])
                 
+                target_mode = "DEFAULT"
+                if live_mix:
+                    r = rng.random()
+                    if r < in_transit_ratio:
+                        target_mode = "IN_TRANSIT"
+                    elif r < in_transit_ratio + delayed_ratio:
+                        target_mode = "DELAYED"
+                    elif r < in_transit_ratio + delayed_ratio + delivered_ratio:
+                        target_mode = "DELIVERED"
+                    else:
+                        target_mode = "PLANNED"
+
+                order_date = world - timedelta(days=rng.randint(1, args.days_back))
                 deadline = order_date + timedelta(days=scheduled)
                 sla_status = OrderSlaStatus.ON_TIME if real <= scheduled else OrderSlaStatus.LATE
                 route_deadline = order_date + timedelta(days=max(scheduled, 45))
@@ -204,17 +224,48 @@ async def run(args):
                 
                 itin = itins[0]
                 legs = []
+
+                # Compute time offset if live_mix is requested
+                offset = timedelta(0)
+                if live_mix and itin.legs:
+                    itin_start = itin.legs[0].departure_at
+                    itin_end = itin.legs[-1].arrival_at
+                    itin_dur = itin_end - itin_start
+                    dur_s = max(3600.0, itin_dur.total_seconds())
+
+                    if target_mode in ("IN_TRANSIT", "DELAYED"):
+                        progress = rng.uniform(0.18, 0.78)
+                        journey_start = world - timedelta(seconds=dur_s * progress)
+                        offset = journey_start - itin_start
+                    elif target_mode == "DELIVERED":
+                        days_ago = timedelta(days=rng.uniform(1.0, float(args.days_back)))
+                        journey_end = world - days_ago
+                        offset = journey_end - itin_end
+                    elif target_mode == "PLANNED":
+                        days_ahead = timedelta(days=rng.uniform(0.5, 4.0))
+                        journey_start = world + days_ahead
+                        offset = journey_start - itin_start
+
                 for seq, kpi in enumerate(itin.legs, start=1):
                     o_coord = node_coords.get(kpi.from_locode)
                     d_coord = node_coords.get(kpi.to_locode)
                     km = haversine_km(*o_coord, *d_coord) if o_coord and d_coord else None
                     
-                    if world >= kpi.arrival_at:
+                    leg_dep = kpi.departure_at + offset
+                    leg_arr = kpi.arrival_at + offset
+
+                    if world >= leg_arr:
                         status = LegStatus.COMPLETED
-                    elif world >= kpi.departure_at:
+                        act_dep = leg_dep
+                        act_arr = leg_arr
+                    elif world >= leg_dep:
                         status = LegStatus.IN_PROGRESS
+                        act_dep = leg_dep
+                        act_arr = None
                     else:
                         status = LegStatus.PLANNED
+                        act_dep = None
+                        act_arr = None
                         
                     geom = _leg_geometry(TransportMode(kpi.mode), o_coord, d_coord, edge_geometry.get(kpi.edge_id))
                     
@@ -225,8 +276,10 @@ async def run(args):
                         status=status,
                         origin_id=locode_to_location.get(kpi.from_locode),
                         destination_id=locode_to_location.get(kpi.to_locode),
-                        planned_departure=kpi.departure_at,
-                        planned_arrival=kpi.arrival_at,
+                        planned_departure=leg_dep,
+                        planned_arrival=leg_arr,
+                        actual_departure=act_dep,
+                        actual_arrival=act_arr,
                         route_geometry_json=geom,
                         distance_km=round(km, 1) if km else None,
                         co2_kg=round(kpi.co2_kg, 1),
@@ -243,8 +296,14 @@ async def run(args):
                     
                 shipment.primary_transport_mode = TransportMode(itin.legs[0].mode)
                 order.shipping_mode = TransportMode(itin.legs[0].mode)
-                
-                if all(leg.status == LegStatus.COMPLETED for leg in legs):
+                shipment.planned_departure = legs[0].planned_departure
+
+                if target_mode == "DELAYED":
+                    shipment.status = ShipmentStatus.DELAYED
+                    delayed_count += 1
+                    order.sla_status = OrderSlaStatus.LATE
+                    order.sla_deadline = legs[-1].planned_arrival - timedelta(hours=rng.randint(6, 36))
+                elif all(leg.status == LegStatus.COMPLETED for leg in legs):
                     shipment.status = ShipmentStatus.DELIVERED
                     delivered += 1
                     for leg in legs:
@@ -256,20 +315,56 @@ async def run(args):
                 else:
                     shipment.status = ShipmentStatus.PLANNED
                     
+                await session.flush()
+
+                # Seed immediate position report for in-progress legs
+                for leg in legs:
+                    if leg.status == LegStatus.IN_PROGRESS and leg.route_geometry_json:
+                        try:
+                            from nexafreight.workers.position_interpolator import _LegData, _interpolate_linear
+                            from nexafreight.models.position_report import PositionReport
+                            leg_dto = _LegData(
+                                leg_id=leg.id,
+                                mode=leg.transport_mode.value if hasattr(leg.transport_mode, "value") else str(leg.transport_mode),
+                                route_geometry=leg.route_geometry_json,
+                                planned_departure=leg.planned_departure,
+                                planned_arrival=leg.planned_arrival,
+                                actual_departure=leg.actual_departure,
+                            )
+                            pos = _interpolate_linear(leg_dto, world, leg.route_geometry_json)
+                            if pos:
+                                report = PositionReport(
+                                    leg_id=leg.id,
+                                    asset_type=pos.asset_type.value if hasattr(pos.asset_type, "value") else str(pos.asset_type),
+                                    latitude=pos.lat,
+                                    longitude=pos.lon,
+                                    speed_knots=pos.speed_knots,
+                                    heading=pos.heading_deg,
+                                    reported_at=world,
+                                    provenance=pos.provenance.value if hasattr(pos.provenance, "value") else str(pos.provenance),
+                                )
+                                session.add(report)
+                        except Exception as e:
+                            log.debug("Skip initial position seed for leg %s: %s", leg.id, e)
+
                 await session.commit()
                 shipments_created += 1
                 count += 1
                 
-        print(f"REPORT > REPLAY DONE: shipments={shipments_created} (delivered={delivered}, in_transit={in_transit}), skipped={skipped}, provenance=DERIVED, citations=DC-<Order Id>")
+        print(f"REPORT > REPLAY DONE: shipments={shipments_created} (in_transit={in_transit}, delayed={delayed_count}, delivered={delivered}), skipped={skipped}, provenance=DERIVED, citations=DC-<Order Id>")
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataco", type=Path, default=Path("data/raw/dataco/DataCoSupplyChain.csv"))
     ap.add_argument("--limit", type=int, default=300)
-    ap.add_argument("--top", type=int, default=5)
+    ap.add_argument("--top", type=int, default=8)
     ap.add_argument("--days-back", type=int, default=21)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--live-mix", action="store_true", help="Distribute shipments across in_transit, delayed, delivered, planned")
+    ap.add_argument("--in-transit-ratio", type=float, default=0.45)
+    ap.add_argument("--delayed-ratio", type=float, default=0.15)
+    ap.add_argument("--delivered-ratio", type=float, default=0.25)
     ap.add_argument("--db-url", type=str, default=None)
     args = ap.parse_args()
     asyncio.run(run(args))

@@ -40,7 +40,11 @@ def run_alembic_command(db_path: Path, *args: str) -> subprocess.CompletedProces
     Returns:
         CompletedProcess with stdout/stderr
     """
-    env = {**os.environ, "DATABASE_PATH": str(db_path)}
+    env = {
+        **os.environ,
+        "DATABASE_PATH": str(db_path),
+        "DATABASE_URL": f"sqlite+aiosqlite:///{db_path.as_posix()}",
+    }
     result = subprocess.run(
         [sys.executable, "-m", "alembic", *args],
         capture_output=True,
