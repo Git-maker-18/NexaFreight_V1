@@ -421,6 +421,8 @@ async def dress_legs_for_reality() -> dict:
         ors_key = settings.ors_api_key.get_secret_value()
     road_router = RoadRouter(api_key=ors_key)
 
+    import time as _time
+
     now = datetime.now(UTC).replace(tzinfo=None)
     sources: dict[str, int] = {}
     async with get_session_factory()() as session:
@@ -437,37 +439,47 @@ async def dress_legs_for_reality() -> dict:
             b = locs.get(leg.destination_id)
             if a and b:
                 mode = str(leg.transport_mode).split(".")[-1]
-                source = "FALLBACK_BEND"
-                geom_str: str | None = None
-                try:
-                    if mode == "SEA":
-                        res = compute_sea_route(a[1], a[0], b[1], b[0])
-                        geom_str = res.geometry_geojson
-                        source = "SEAROUTE"
-                    elif mode == "AIR":
-                        res = compute_air_route(a[1], a[0], b[1], b[0])
-                        geom_str = res.geometry_geojson
-                        source = "GREAT_CIRCLE"
-                    else:
-                        res = road_router.compute((a[1], a[0]), (b[1], b[0]))
-                        geom_str = res.geometry_geojson
-                        source = "ORS" if res.source == "OPENROUTESERVICE" else "ROAD_FALLBACK"
-                except Exception as exc:  # noqa: BLE001
-                    log.warning("Real routing failed for leg %s (%s): %s — using bend fallback", leg.id, mode, exc)
-                if geom_str is None or "LineString" not in geom_str:
-                    coords = [list(a)]
-                    if mode == "SEA":
-                        coords += [_bend(a, b, 0.35, 0.18), _bend(a, b, 0.65, 0.22)]
-                    elif mode == "AIR":
-                        coords += [_bend(a, b, 0.5, 0.10)]
-                    else:
-                        coords += [_bend(a, b, 0.3, 0.06), _bend(a, b, 0.7, -0.05)]
-                    coords.append(list(b))
-                    geom_str = _json.dumps({"type": "LineString", "coordinates": coords})
+                prov = str(getattr(leg, "provenance", "") or "").split(".")[-1].upper()
+                if prov == "REAL" and leg.route_geometry_json:
+                    # Already engine-routed in a previous pass — keep the real
+                    # geometry, don't burn API quota re-routing it.
+                    sources["KEPT_REAL"] = sources.get("KEPT_REAL", 0) + 1
+                    filled += 1
+                else:
                     source = "FALLBACK_BEND"
-                leg.route_geometry_json = geom_str
-                sources[source] = sources.get(source, 0) + 1
-                filled += 1
+                    geom_str: str | None = None
+                    try:
+                        if mode == "SEA":
+                            res = compute_sea_route(a[1], a[0], b[1], b[0])
+                            geom_str = res.geometry_geojson
+                            source = "SEAROUTE"
+                        elif mode == "AIR":
+                            res = compute_air_route(a[1], a[0], b[1], b[0])
+                            geom_str = res.geometry_geojson
+                            source = "GREAT_CIRCLE"
+                        else:
+                            res = road_router.compute((a[1], a[0]), (b[1], b[0]))
+                            geom_str = res.geometry_geojson
+                            source = "ORS" if res.source == "OPENROUTESERVICE" else "ROAD_FALLBACK"
+                    except Exception as exc:  # noqa: BLE001
+                        log.warning("Real routing failed for leg %s (%s): %s — using bend fallback", leg.id, mode, exc)
+                    if geom_str is None or "LineString" not in geom_str:
+                        coords = [list(a)]
+                        if mode == "SEA":
+                            coords += [_bend(a, b, 0.35, 0.18), _bend(a, b, 0.65, 0.22)]
+                        elif mode == "AIR":
+                            coords += [_bend(a, b, 0.5, 0.10)]
+                        else:
+                            coords += [_bend(a, b, 0.3, 0.06), _bend(a, b, 0.7, -0.05)]
+                        coords.append(list(b))
+                        geom_str = _json.dumps({"type": "LineString", "coordinates": coords})
+                        source = "FALLBACK_BEND"
+                    leg.route_geometry_json = geom_str
+                    leg.provenance = "REAL" if source in ("SEAROUTE", "GREAT_CIRCLE", "ORS") else "DERIVED"
+                    sources[source] = sources.get(source, 0) + 1
+                    filled += 1
+                    if ors_key and mode not in ("SEA", "AIR"):
+                        _time.sleep(1.5)  # ORS free tier: stay under 40 req/min
 
             dep = leg.planned_departure.replace(tzinfo=None) if leg.planned_departure.tzinfo else leg.planned_departure
             arr = leg.planned_arrival.replace(tzinfo=None) if leg.planned_arrival.tzinfo else leg.planned_arrival

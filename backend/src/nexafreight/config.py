@@ -132,7 +132,7 @@ class Settings(BaseSettings):
         if self.database_path == Path(":memory:"):
             return "sqlite+aiosqlite:///:memory:"
         posix = self.database_path.as_posix()
-        if not posix.startswith("./") and not posix.startswith("/"):
+        if not self.database_path.is_absolute() and not posix.startswith("./") and not posix.startswith("/"):
             posix = f"./{posix}"
         return f"sqlite+aiosqlite:///{posix}"
 
@@ -142,7 +142,7 @@ class Settings(BaseSettings):
         if self.test_database_path == Path(":memory:"):
             return "sqlite+aiosqlite:///:memory:"
         posix = self.test_database_path.as_posix()
-        if not posix.startswith("./") and not posix.startswith("/"):
+        if not self.test_database_path.is_absolute() and not posix.startswith("./") and not posix.startswith("/"):
             posix = f"./{posix}"
         return f"sqlite+aiosqlite:///{posix}"
 

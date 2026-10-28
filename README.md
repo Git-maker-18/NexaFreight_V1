@@ -1,105 +1,175 @@
-# NexaFreight — Autonomous Multimodal Logistics & Maritime Intelligence Control Tower
+<div align="center">
 
-[![CI](https://github.com/rajmontana/NexaFreight/actions/workflows/ci.yml/badge.svg)](https://github.com/rajmontana/NexaFreight/actions/workflows/ci.yml)
+# NexaFreight
+
+### Autonomous Multimodal Logistics & Maritime Intelligence Control Tower
+
+[![CI Pipeline](https://github.com/rajmontana/NexaFreight/actions/workflows/ci.yml/badge.svg)](https://github.com/rajmontana/NexaFreight/actions/workflows/ci.yml)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Next.js](https://img.shields.io/badge/Next.js-16.2-black.svg?logo=next.js&logoColor=white)](https://nextjs.org)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Tests Passing](https://img.shields.io/badge/Tests-1000%2B%20Passing-brightgreen.svg)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-NexaFreight is an enterprise-grade autonomous multimodal logistics control tower and maritime intelligence platform. It provides end-to-end visibility across ocean freight, air cargo, road haulage, and warehouse hubs with real-time AIS vessel telemetry, predictive machine learning delay models, automated disruption mitigation, and an AI Operations Copilot powered by Google Gemini.
+*An enterprise-grade platform uniting real-time AIS vessel telemetry, intermodal route optimization, predictive delay machine learning, automated disruption recovery, and an AI Operations Copilot powered by Google Gemini.*
 
 ---
 
-## Architecture Overview
+</div>
 
-NexaFreight runs as a coordinated two-tier architecture:
+## 📌 Overview
+
+Global supply chain operations are inherently fragmented. Ocean container shipping, air cargo, railway freight, and line-haul trucking operate in disconnected data silos. When chokepoints bottleneck—whether through canal advisories, port congestion, or extreme weather—logistics teams discover delays days late, incurring severe demurrage penalties and missed customer SLAs.
+
+**NexaFreight** bridges this gap as a 24/7 autonomous multimodal control tower. It continuously ingests real-world maritime and transit telemetry, predicts disruptions before arrival scans, automatically evaluates **3 deterministic recovery options** (Accept, Divert, Modal Shift), and enforces an auditable **Data Provenance Standard** across all metrics.
+
+---
+
+## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                       Next.js Frontend (Port 3000)                      │
-│   • Interactive 3D Tactical Globe & Multimodal Corridor Map             │
-│   • Operations Intelligence, Disruption Alerts & Financial Analytics    │
-│   • AI Operations Copilot (Gemini & Rule-Based Intent Routing)          │
+│                      Next.js 16 Frontend (Port 3000)                    │
+│   • Tactical 3D Globe & Flat Mercator Canvas (MapLibre GL)              │
+│   • Operations Manifest Ledger & Deep Shipment Dossier                  │
+│   • Operational Analytics & Prophet Demand Forecasting (Recharts)       │
+│   • 3-Way Disruption Triage Desk & Audit Trail Ledger                   │
+│   • Persistent AI Copilot Quick Dock (Google Gemini + Rule Engine)      │
 │   • Real-Time Position Stream Consumer (Server-Sent Events)             │
 └────────────────────────────────────┬────────────────────────────────────┘
-                                     │ REST & SSE (:8000)
+                                     │ REST APIs & SSE Stream (:8000)
 ┌────────────────────────────────────▼────────────────────────────────────┐
-│                       FastAPI Backend (Port 8000)                       │
-│   • Telemetry Engine: AISStream live WebSocket & High-Res Interpolation │
-│   • Multimodal Router: Sea corridors (searoute), Road (ORS/OSRM), Air   │
-│   • Disruption & Reroute Engine: 3 deterministic mitigation options     │
-│   • SLA & Demurrage Monitor: Risk band calculations & auto-escalation   │
-│   • Predictive ML: LightGBM delay classifier, StatsForecast demand     │
-│   • Database: SQLite (local) / PostgreSQL with Async SQLAlchemy         │
+│                      FastAPI Backend (Port 8000)                        │
+│   • Telemetry Engine: AISStream live WebSocket & Linear Interpolator    │
+│   • Multimodal Router: Sea (searoute), Highway (ORS/OSRM), Air & Rail   │
+│   • Time-Expanded Graph Planner: Yen's k-shortest paths optimization    │
+│   • Predictive ML: LightGBM delay classifier & StatsForecast Prophet    │
+│   • Disruption Engine: SLA-cushion relative severity classification     │
+│   • Financial & ESG Engine: Waterfall P&L, demurrage & GLEC CO2 kg      │
+│   • Database: SQLite (local dev) / PostgreSQL 16 (production)           │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
----
-
-## Key Capabilities
-
-### 1. Global Multimodal Visibility & Real-Time AIS Telemetry
-- **Live Vessel Tracking**: Integrates with live AIS feeds (`aisstream.io`) and high-frequency historical position interpolators.
-- **Intermodal Corridor Engine**: Automatically computes and renders multi-leg journeys across ocean container shipping, air freight, and inland trucking routes.
-- **Hub & Depot Infrastructure**: Live visualization of maritime ports, air hubs, and regional distribution warehouses.
-
-### 2. Autonomous Disruption & Deterministic Rerouting
-- **Automated Disruption Detection**: Real-time detection of canal blockages, severe weather, port labor delays, and terminal congestion.
-- **Three-Way Recovery Generator**:
-  1. **Accept Delay**: Evaluates cost and SLA impact of waiting out the disruption.
-  2. **Port Divert**: Computes alternative maritime routes and terminal bypasses with distance, CO2, and demurrage trade-offs.
-  3. **Modal Shift**: Triggers emergency air or expedited road freight for high-priority shipments near SLA breach thresholds.
-
-### 3. Predictive Analytics & Operational Finance
-- **Machine Learning Delay Classifier**: Pre-trained LightGBM model assessing delay risk based on shipment mode, route geography, and seasonal congestion.
-- **Financial Risk Modeling**: Real-time calculations of demurrage penalties, inventory holding costs, and fuel surcharges.
-- **Carbon Accounting**: GLEC-compliant CO2 emission calculations across all transportation modes.
-
-### 4. NexaFreight AI Copilot
-- **Intelligent Dispatch**: Hybrid query router using deterministic operational rules for high-precision entity lookups (vessels, shipments, alerts) and Google Gemini LLMs for complex advisory and root-cause analysis.
-- **Auditable Provenance**: Every AI answer and metric carries explicit provenance badges (`REAL`, `DERIVED`, `REPLAYED`) ensuring full auditability.
+<div align="center">
+  <img src="diagram.png" alt="NexaFreight System Architecture" width="90%" />
+</div>
 
 ---
 
-## Directory Structure
+## ⚡ Core Capabilities
+
+### 1. Global Multimodal Visibility & Real-Time Telemetry
+- **Live Vessel Tracking**: Ingests real-time AIS transponder streams (`aisstream.io`) for maritime container fleets.
+- **Intermodal Corridor Engine**: Renders true journeys across sea lanes, highway road networks (via ORS/OSRM), dedicated railway freight corridors, and parabolic great-circle flight paths.
+- **Dynamic Linear Interpolator**: High-frequency position server computing sub-second vehicle headings and forward tangents along active route geometries.
+- **Server-Sent Events (SSE)**: Sub-second position updates streamed directly to the MapLibre GL frontend canvas.
+
+### 2. Autonomous Disruption & Deterministic 3-Way Triage
+- **Cushion-Relative Detection**: Evaluates disruption severity relative to each shipment's remaining SLA buffer instead of arbitrary global delays.
+- **3 Deterministic Recovery Scenarios**:
+  1. **Accept Delay**: Evaluates liquidated damages, customer impact, and demurrage accrual.
+  2. **Port Divert**: Computes alternative seaport bypasses with incremental nautical miles, onward drayage, and CO2 trade-offs.
+  3. **Modal Shift**: Triggers emergency air or expedited rail links when SLA penalty risk exceeds modal transition costs.
+- **Audit Logging**: Approved operator decisions commit directly to an immutable database ledger with before/after variance tracking.
+
+### 3. Predictive Machine Learning & Forecasting
+- **Delay Classifier (LightGBM)**: Trained on historical international supply chain data with strict chronological splits and post-hoc leakage bans. **Validation AUC: 0.7315**, PR-AUC: 0.791.
+- **Demand Forecasting (Prophet / StatsForecast)**: Models forward cargo volume across **79 international trade corridors** with 80% confidence intervals. **WAPE: 32.16%** (+26.9% lift over seasonal-naive baselines).
+- **ETA Quantile Residual Estimator**: Quantile regression evaluating $p_{10}$, $p_{50}$, and $p_{85}$ delay margins for operational risk banding (`ON_TIME`, `MEDIUM`, `HIGH`, `BREACH`).
+
+### 4. Operational Financials & GLEC Carbon Accounting
+- **Waterfall P&L Engine**: Real-time freight revenues, fuel adjustment factors (BAF), terminal handling charges (THC), and detention risk in Indian Rupees (₹) and USD.
+- **Demurrage Tracking**: Automatic calculation of daily demurrage liabilities after standard free days expire.
+- **GLEC Carbon Accounting**: Multimodal greenhouse emission calculations ($kg\ CO_2$ per tonne-kilometer) compliant with Global Logistics Emissions Council standards.
+
+### 5. NexaFreight AI Operations Copilot
+- **Hybrid Dispatch Architecture**:
+  - *Deterministic Fast Path*: Regex and rule parsers for zero-latency, zero-hallucination lookups (shipment IDs, vessel status, demurrage balance, active alerts).
+  - *Generative Advisory Path*: Injects active shipment context, port congestion, and SLA margins into **Google Gemini** for root-cause analysis and qualitative trade-off explanations.
+- **Persistent Global Dock**: Floating, collapsible assistant dock accessible across all pages with quick-prompt chips.
+
+### 6. Strict Data Provenance Standard
+Every metric, cost, and coordinate on the platform is explicitly tagged with an audit badge:
+- `REAL`: Raw, direct telemetry from live external sensors (live AIS ping, Open-Meteo weather report).
+- `CALIBRATED`: Empirical models verified against real historical baselines (demurrage rates, port turnaround times).
+- `DERIVED`: Mathematically computed from genuine operational data (Yen's planned legs, GLEC CO2, P&L waterfall).
+- `SIMULATED`: Synthetically generated for demo continuity (simulated between-port vessel interpolation).
+
+---
+
+## 📊 Data Foundations
+
+NexaFreight is built upon 5 industry-standard datasets:
+
+| Dataset | Source / Provider | Records | Operational Role |
+|---|---|---|---|
+| **UN/LOCODE** | United Nations UNECE | 84,000+ nodes | Standardized geocoded registry of global seaports, cargo airports, rail depots, and container freight stations. |
+| **IMF PortWatch** | International Monetary Fund & Oxford | Daily series | Real vessel calls and trade estimates; computes daily port `congestion_index = daily_calls / rolling_90d_avg`. |
+| **Kaggle Maritime & World Port Index** | World Bank & NGA | Global terminals | Provides port berth capacities, container turnaround times, and LOCODE alias resolution via RapidFuzz. |
+| **DataCo Smart Supply Chain** | Kaggle / Mendeley | 65,752 orders | Powers multimodal shipment itineraries, customer SLA thresholds, and historical delay training sets. |
+| **NOAA MarineCadastre AIS** | NOAA & USCG | Snappy Parquet | Historical ship telemetry and speed profiles used for realistic maritime movement replay. |
+
+---
+
+## 🖥️ Application Screens
+
+The frontend is organized into 5 dedicated, high-density operational surfaces:
+
+1. **Tactical Control Tower (`/`)**:
+   - Interactive 3D globe / flat Mercator canvas (MapLibre GL) with technical chartroom aesthetics.
+   - Live moving ships, cargo planes, and freight trucks with directional route-facing headings.
+   - Headline KPI band: Active Shipments, In-Transit, SLA Risk, Demurrage Liability (₹), and Network CO2.
+   - Slide-over shipment inspection drawer and real-time alert dispatch pills.
+2. **Shipment Manifest Ledger (`/shipments`)**:
+   - Full-page paginated operations table with status and transport mode filters.
+   - Displays lane origins/destinations, milestone progress bars, ETA variances ($\pm\text{hours}$), and landed costs in ₹.
+3. **Shipment Dossier (`/shipments/[id]`)**:
+   - Deep-dive operational view featuring live time-to-destination countdowns, schedule slip counters, route mini-maps, sequential milestone leg cards, itemized P&L breakdowns, and Copilot risk verdicts.
+4. **Operational Insights (`/insights`)**:
+   - Comprehensive analytics suite with carrier SLA compliance trends, modal GLEC CO2 footprint ledgers, demurrage loss waterfalls, and the MOD-407 Prophet demand forecast curves for 79 trade lanes.
+5. **Disruption Queue (`/alerts`)**:
+   - Incident queue classifying bottlenecks by SLA cushion impact with the **3-Way Recovery Desk** modal for executing Accept, Divert, or Modal Shift decisions.
+
+---
+
+## 🗂️ Project Directory Structure
 
 ```
 .
 ├── backend/
-│   ├── migrations/             # Alembic database migration scripts
-│   ├── models/                 # Pre-trained ML models (LightGBM, StatsForecast)
-│   ├── scripts/                # Database seed scripts & ingestion pipelines
+│   ├── migrations/             # Alembic database migration chain
+│   ├── models/                 # Pre-trained ML model artifacts (LightGBM, Prophet)
+│   ├── scripts/                # Data ingestion pipelines, seeding & fleet sync
 │   ├── src/nexafreight/        # Application source code
-│   │   ├── api/                # API routers (shipments, alerts, telemetry, copilot, etc.)
-│   │   ├── core/               # Configuration, security, and database engine
+│   │   ├── api/                # FastAPI routers (shipments, alerts, telemetry, copilot, etc.)
+│   │   ├── core/               # Configuration, security, params registry & clock
 │   │   ├── models/             # SQLAlchemy ORM models & Pydantic schemas
-│   │   ├── services/           # Routing, telemetry, SLA checker, ML, reroute engine
-│   │   └── workers/            # Background cron jobs & AIS listener workers
-│   ├── tests/                  # Unit and integration test suite (600+ tests)
-│   ├── alembic.ini             # Alembic configuration
-│   ├── pyproject.toml          # Python project specification & dependencies
-│   └── requirements.txt        # Production pip requirements
+│   │   ├── services/           # Routing, planner, disruption, financial & copilot engines
+│   │   └── workers/            # Position interpolator & AIS listener workers
+│   ├── tests/                  # Backend test suite (660+ unit & integration tests)
+│   ├── alembic.ini             # Database migration configuration
+│   └── requirements.txt        # Backend dependencies
 │
 ├── frontend/
-│   ├── public/                 # Static assets, icons, and audio alerts
+│   ├── public/                 # Static assets, branding marks, and vector maps
 │   ├── src/
-│   │   ├── app/                # Next.js App Router pages and proxy API routes
-│   │   ├── components/         # Tactical UI components (GlobeMap, Analytics, Copilot)
-│   │   ├── hooks/              # Custom React hooks (SSE streams, audio, telemetry)
-│   │   └── lib/                # API clients, geo utilities, and style tokens
-│   ├── package.json            # Node.js dependencies and scripts
+│   │   ├── app/                # Next.js App Router pages (/, /shipments, /insights, /alerts)
+│   │   ├── components/         # Chartroom tactical components (GlobeMap, Copilot, Ledger)
+│   │   ├── hooks/              # Custom React hooks (SSE telemetry stream, fleet KPIs)
+│   │   └── lib/                # API client, geo math, INR formatters, and style tokens
+│   ├── package.json            # Node.js dependencies
 │   ├── tsconfig.json           # TypeScript configuration
-│   └── vitest.config.ts        # Frontend test configuration
+│   └── vitest.config.ts        # Vitest test runner configuration
 │
-├── .github/workflows/          # CI/CD automation (Pytest, Vitest, Typecheck, Build)
-├── Makefile                    # Developer build and test shortcuts
+├── docker-compose.yml          # Container configuration for production parity
+├── Makefile                    # Developer shortcut commands
 └── README.md                   # Project documentation
 ```
 
 ---
 
-## Quickstart Guide
+## 🚀 Quickstart Guide
 
 ### Prerequisites
 - **Python**: 3.11 or newer
@@ -111,145 +181,113 @@ NexaFreight runs as a coordinated two-tier architecture:
 ### 1. Backend Setup
 
 ```bash
-# Navigate to the backend directory
+# 1. Navigate to backend directory
 cd backend
 
-# Create and activate a Python virtual environment
+# 2. Create and activate a virtual environment
+# Windows (PowerShell):
 python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 
-# On Linux/macOS:
-source .venv/bin/activate
-# On Windows (PowerShell):
-.venv\Scripts\Activate.ps1
+# Linux / macOS:
+# python3 -m venv .venv && source .venv/bin/activate
 
-# Install dependencies
+# 3. Install dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
 pip install -e .
 
-# Configure environment variables
+# 4. Configure environment variables
 cp .env.example .env
-# Edit .env to set your JWT_SECRET and optional API keys (Gemini, AISStream, ORS)
+# Set JWT_SECRET in .env (and optional GEMINI_API_KEY, AIS_API_KEY, ORS_API_KEY)
 
-# Apply database migrations
+# 5. Run database migrations
 alembic upgrade head
 
-# Seed initial operational data (users, shipments, telemetry, analytics)
+# 6. Seed operational data & fleet orchestrator
 python scripts/seed_user.py
 python scripts/06_seed_analytics.py
 python scripts/activate_and_seed_positions.py
 
-# Start the FastAPI server
+# Optional: Run real-world DataCo fleet synchronization
+python scripts/sync_real_world.py --limit 200
+
+# 7. Start the FastAPI development server
 uvicorn nexafreight.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Backend API documentation (Swagger UI) is available at:
-`http://localhost:8000/docs`
+*Interactive Swagger API documentation will be available at: `http://localhost:8000/docs`*
 
 ---
 
 ### 2. Frontend Setup
 
 ```bash
-# Open a second terminal and navigate to the frontend directory
+# 1. Open a new terminal and navigate to frontend directory
 cd frontend
 
-# Configure environment variables
+# 2. Configure environment variables
 cp .env.example .env.local
-# Ensure NEXT_PUBLIC_NEXA_API_URL=http://localhost:8000
+# Verify NEXT_PUBLIC_NEXA_API_URL=http://localhost:8000
 
-# Install Node dependencies
+# 3. Install Node dependencies
 npm ci
 
-# Start the Next.js development server
+# 4. Start Next.js development server
 npm run dev
 ```
 
-Open your browser at `http://localhost:3000`.
+*Open your browser at: `http://localhost:3000`*
 
-**Default Credentials:**
+**Default Operator Credentials:**
 - **Email:** `operator@nexafreight.dev`
 - **Password:** `changeme123`
 
 ---
 
-## Testing & Quality Assurance
+## 🧪 Testing & Verification
 
-NexaFreight includes a comprehensive test suite across backend services and frontend components.
+NexaFreight enforces comprehensive test coverage across both tiers:
 
-### Automated Test Suite
 ```bash
-# Run both test suites via Makefile
-make test
-
-# Run backend tests (608 tests)
+# --- Backend Test Suite (660+ tests) ---
 cd backend
-pytest -q
+pytest tests/unit -q
 
-# Run frontend unit tests (234 tests)
+# --- Frontend Unit Tests (344 tests across 25 suites) ---
 cd frontend
 npx vitest run
 
-# Run frontend typechecking
+# --- Frontend Typecheck ---
 cd frontend
 npx tsc --noEmit
 
-# Test production build
+# --- Production Build Validation ---
 cd frontend
 npm run build
 ```
 
 ---
 
-## API Reference Summary
+## 🔌 API Summary
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/api/v1/auth/login` | Authenticates user and returns JWT bearer token |
-| `GET` | `/api/v1/shipments` | Lists multimodal shipments with filter by status/mode |
-| `GET` | `/api/v1/shipments/{id}` | Detailed shipment manifest, leg geometries, and SLA |
-| `GET` | `/api/v1/telemetry/stream` | Server-Sent Events (SSE) stream of live positions |
-| `GET` | `/api/v1/alerts` | Active operational alerts and demurrage warnings |
-| `POST` | `/api/v1/alerts/{id}/options` | Evaluates 3 reroute recovery options for an alert |
-| `POST` | `/api/v1/decisions` | Commits an approved reroute decision to the audit log |
-| `GET` | `/api/v1/analytics/summary` | Executive dashboard KPIs, volume, revenue, and CO2 |
-| `POST` | `/api/v1/copilot/chat` | Interacts with the AI Copilot for operational queries |
-
-## Infrastructure & Deployability
-
-NexaFreight is designed to run locally using SQLite for rapid development, but is fully deployable to production infrastructure (e.g., Render, Oracle Cloud) using PostgreSQL and Docker.
-
-### Local SQLite (Default)
-By default, the backend uses an embedded SQLite database.
-- Simply run `pip install -e .` and `alembic upgrade head`.
-- The database is created locally at `backend/nexafreight.db`.
-
-### Local Postgres via Docker Compose
-For testing production parity locally, a `docker-compose.yml` is provided.
-- Run `docker-compose up -d postgres` to spin up a local PostgreSQL 16 instance.
-- The `docker-compose` setup includes the backend and frontend, but you can also run the database standalone.
-
-### Environment Overrides (`DATABASE_URL`)
-To connect the backend to a Postgres instance, set the `DATABASE_URL` environment variable:
-```bash
-export DATABASE_URL="postgresql+asyncpg://nexa:nexa_password@localhost:5432/nexafreight"
-alembic upgrade head
-uvicorn nexafreight.main:app
-```
-*Note: `DATABASE_URL` always takes precedence over the default SQLite database path.*
-
-Stage A (Render): the repo root render.yaml declares the backend web
-service from the GHCR image; deploy via Render Dashboard > New > Blueprint.
+| `POST` | `/api/v1/auth/login` | Authenticates operator and returns JWT bearer token |
+| `GET` | `/api/v1/shipments` | Lists multimodal shipments with mode and status filters |
+| `GET` | `/api/v1/shipments/{id}` | Detailed manifest, waypoint milestones, and SLA margins |
+| `GET` | `/api/v1/shipments/{id}/route` | GeoJSON route geometry coordinates for vector maps |
+| `GET` | `/api/v1/shipments/{id}/financials` | Detailed freight rate, demurrage risk, and P&L breakdown |
+| `GET` | `/api/v1/telemetry/stream` | Server-Sent Events (SSE) live position stream |
+| `GET` | `/api/v1/map/ports` | Port location registry and live IMF congestion indices |
+| `GET` | `/api/v1/alerts` | Active operational disruption queue |
+| `POST` | `/api/v1/alerts/{id}/options` | Evaluates 3 deterministic recovery options (Accept, Divert, Shift) |
+| `POST` | `/api/v1/decisions` | Commits approved operator decision to immutable audit ledger |
+| `GET` | `/api/v1/analytics/summary` | Executive KPI scorecard, volume, revenue, and CO2 emissions |
+| `POST` | `/api/v1/copilot/chat` | Dispatches query to AI Copilot (deterministic rule / Google Gemini) |
 
 ---
 
-## Contributing (Windows note)
+## 📄 License
 
-This repo is developed and verified via `git format-patch` / `git am --3way`
-workflows. On Windows checkouts, set `git config core.autocrlf false` for
-this repository to avoid phantom whole-file diffs; editors should save
-UTF-8 without BOM. Console tooling assumes cp1252-safe (ASCII) output.
-
-## License
-
-This project is licensed under the MIT License — see the [LICENSE](frontend/LICENSE) file for details.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
