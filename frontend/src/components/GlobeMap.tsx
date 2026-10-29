@@ -1018,11 +1018,6 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
       mapRef.current = map;
       map.resize();
       map.setRenderWorldCopies(false);
-      try {
-        map.setMaxBounds([[-180, -85], [180, 85]]);
-      } catch (err) {
-        console.warn('[NexaFreight] Could not set maxBounds:', err);
-      }
       map.setMinZoom(1.5);
       
       // Theme colors
@@ -3098,21 +3093,33 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
     try {
-      (map as any).setProjection({ type: projection });
       if (projection === 'globe') {
-        map.easeTo({ pitch: 20, duration: 1200 });
         try {
-          (map as any).setSky({
-            'sky-color': '#04040A',
-            'sky-horizon-blend': 0.5,
-            'horizon-color': '#0a0a1a',
-            'horizon-fog-blend': 0.3,
-            'fog-color': '#04040A',
-            'fog-ground-blend': 0.9,
-          });
-        } catch (e: any) { console.warn('[NexaFreight] Suppressed error:', e instanceof Error ? e.message : e); }
+          if (typeof (map as any).setProjection === 'function') {
+            (map as any).setProjection({ type: 'globe' });
+          }
+          map.easeTo({ pitch: 20, duration: 1200 });
+          try {
+            (map as any).setSky({
+              'sky-color': '#04040A',
+              'sky-horizon-blend': 0.5,
+              'horizon-color': '#0a0a1a',
+              'horizon-fog-blend': 0.3,
+              'fog-color': '#04040A',
+              'fog-ground-blend': 0.9,
+            });
+          } catch (e: any) { console.warn('[NexaFreight] Suppressed error:', e instanceof Error ? e.message : e); }
+        } catch (e) {
+          console.warn('[NexaFreight] Globe projection warning:', e);
+        }
       } else {
-        map.easeTo({ pitch: 0, duration: 800 });
+        try {
+          if (map.getPitch() > 0) {
+            map.easeTo({ pitch: 0, duration: 800 });
+          }
+        } catch (e) {
+          console.warn('[NexaFreight] Pitch reset error:', e);
+        }
       }
     } catch (e: any) {
       console.warn('Projection switch failed:', e);
@@ -3504,25 +3511,38 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
     if (!mapReady || !mapRef.current || !followUser || !userLocation) return;
     // While navigating, sit close in and rotate the map so travel direction is
     // "up" — reading a turn off a north-locked map at speed does not work.
-    mapRef.current.easeTo({
-      center: [userLocation.lng, userLocation.lat],
-      ...(navigating
-        ? {
-            zoom: Math.max(mapRef.current.getZoom(), 16.5),
-            pitch: 50,
-            ...(typeof userLocation.heading === 'number' && !Number.isNaN(userLocation.heading)
-              ? { bearing: userLocation.heading }
-              : {}),
-          }
-        : {}),
-      duration: 700,
-    });
+    try {
+      mapRef.current.easeTo({
+        center: [userLocation.lng, userLocation.lat],
+        ...(navigating
+          ? {
+              zoom: Math.max(mapRef.current.getZoom(), 16.5),
+              pitch: 50,
+              ...(typeof userLocation.heading === 'number' && !Number.isNaN(userLocation.heading)
+                ? { bearing: userLocation.heading }
+                : {}),
+            }
+          : {}),
+        duration: 700,
+      });
+    } catch (e) {
+      console.warn('[NexaFreight] followUser easeTo warning:', e);
+    }
   }, [mapReady, followUser, userLocation, navigating]);
 
-  // Restore a plain north-up view when guidance ends.
+  // Restore a plain north-up view only when active guidance ends.
+  const prevNavigatingRef = useRef(navigating);
   useEffect(() => {
-    if (!mapReady || !mapRef.current || navigating) return;
-    mapRef.current.easeTo({ pitch: 0, bearing: 0, duration: 600 });
+    const wasNavigating = prevNavigatingRef.current;
+    prevNavigatingRef.current = navigating;
+    if (!mapReady || !mapRef.current) return;
+    if (wasNavigating && !navigating) {
+      try {
+        mapRef.current.easeTo({ pitch: 0, bearing: 0, duration: 600 });
+      } catch (e) {
+        console.warn('[NexaFreight] restore north-up easeTo warning:', e);
+      }
+    }
   }, [mapReady, navigating]);
 
   // ── AIRPORTS FOR WATCHED AIRCRAFT ──
