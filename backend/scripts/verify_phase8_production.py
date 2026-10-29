@@ -246,7 +246,7 @@ def run_checks(
 
         # Demand Forecast
         c_fc, b_fc = check_endpoint(
-            f"{base_url}/api/demand/forecast?category=Cleats&region=South Asia&horizon_days=90",
+            f"{base_url}/api/demand/forecast?category=Cleats&region=South%20Asia&horizon_days=90",
             headers={"Authorization": f"Bearer {primary_token}"},
             timeout=15,
         )
@@ -258,7 +258,7 @@ def run_checks(
         eta_not_503 = c_eta != 503
         results.append(("6a. Predict ETA endpoint is live and not 503", eta_not_503, f"HTTP {c_eta} (requires auth)"))
 
-        c_fc, _ = check_endpoint(f"{base_url}/api/demand/forecast?category=Cleats&region=South Asia", timeout=15)
+        c_fc, _ = check_endpoint(f"{base_url}/api/demand/forecast?category=Cleats&region=South%20Asia", timeout=15)
         fc_not_503 = c_fc != 503
         results.append(("6b. Demand forecast endpoint is live and not 503", fc_not_503, f"HTTP {c_fc} (requires auth)"))
 
