@@ -55,16 +55,16 @@ Served directly from `LANE_QUANTILES_TABLE` with provenance `DERIVED`:
 
 ---
 
-## 4. Emissions Accounting (GLEC Framework v3.2)
+## 4. Emissions Accounting
 
-Standardized across all routing, scoring, financial calculation, and reporting engines:
+Emissions factors use GLEC default intensity factors (basis not independently verified), standardized across all routing, scoring, financial calculation, and reporting engines:
 
-| Transport Mode | Default Factor (g CO2e / t-km) | GLEC Reference Category |
+| Transport Mode | Default Factor (g CO2e / t-km) | Category Description |
 | :--- | :--- | :--- |
-| **AIR** | **602.0** | Belly freight, long-haul twin-aisle |
+| **AIR** | **602.0** | Air freight, long-haul twin-aisle |
 | **ROAD** | **62.0** | Heavy articulated truck (>32t), ambient |
 | **RAIL** | **22.0** | Continental electric/diesel mixed freight |
-| **SEA** | **16.1** | Container ship, 8,000–14,999 TEU |
+| **SEA** | **16.1** | Container ship, 8,000-14,999 TEU |
 
 ---
 
@@ -72,7 +72,8 @@ Standardized across all routing, scoring, financial calculation, and reporting e
 
 | Suite / Check | Passing | Failing / xfail | Notes |
 | :--- | :--- | :--- | :--- |
-| **Backend Pytest** | **858 passed** | **5 xfailed** | 5 Pareto frontier benchmarks (ALG-01) |
-| **Frontend Vitest** | **348 passed** | **0 failed** | Security, UI, and logic unit tests |
+| **Backend Pytest** | **885 passed** | **5 xfailed** | 5 Pareto frontier benchmarks (ALG-01), 0 failures |
+| **Backend Postgres Integration** | **179 passed** | **0 failed** | Full integration suite on PostgreSQL 16 |
+| **Frontend Vitest** | **352 passed** | **0 failed** | Security, SSE tickets, UI, and logic unit tests |
 | **Frontend Build** | **40 routes compiled** | **0 errors** | Static pages & API proxies verified |
 | **Alembic Heads** | **1 head** | `a1b2c3d4e5f6` | Migration chain verified on SQLite & PG |
