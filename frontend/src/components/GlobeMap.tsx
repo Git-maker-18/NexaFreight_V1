@@ -971,9 +971,18 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
     const baseOptions = {
       container,
       style: openFreeMapStyle,
-      center: [25.48, 42.70] as [number, number], zoom: 6.5, minZoom: 1.5, maxZoom: 18,
+      center: [20.0, 25.0] as [number, number],
+      zoom: 2.8,
+      minZoom: 1.5,
+      maxZoom: 18,
+      renderWorldCopies: false, // Restrict to exactly one world map length (no infinite horizontal wrap)
+      maxBounds: [
+        [-180, -85], // Southwest coordinates
+        [180, 85],   // Northeast coordinates
+      ] as [[number, number], [number, number]],
       attributionControl: false as const,
-      maxPitch: 85,
+      maxPitch: 60,
+      fadeDuration: 0, // Instant tile rendering for crisp 60fps interaction
       transformRequest: (url: string) => {
         return { url };
       },
@@ -1012,6 +1021,9 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
     map.on('load', () => {
       mapRef.current = map;
       map.resize();
+      map.setRenderWorldCopies(false);
+      map.setMaxBounds([[-180, -85], [180, 85]]);
+      map.setMinZoom(1.5);
       
       // Theme colors
       const isGhost = theme === 'ghost';
