@@ -21,6 +21,33 @@ from nexafreight.services.copilot import answer_shipment_question
 router = APIRouter()
 
 
+import time
+from collections import defaultdict
+from nexafreight.exceptions import RateLimitExceededError
+
+_COPILOT_REQUEST_TIMESTAMPS: dict[str, list[float]] = defaultdict(list)
+COPILOT_WINDOW_SECONDS = 60
+COPILOT_MAX_REQUESTS_PER_WINDOW = 10
+
+
+def check_copilot_rate_limit(user_id: str) -> None:
+    now = time.time()
+    cutoff = now - COPILOT_WINDOW_SECONDS
+    timestamps = [t for t in _COPILOT_REQUEST_TIMESTAMPS[user_id] if t > cutoff]
+    if len(timestamps) >= COPILOT_MAX_REQUESTS_PER_WINDOW:
+        retry_after = max(1, int(timestamps[0] + COPILOT_WINDOW_SECONDS - now))
+        raise RateLimitExceededError(
+            message=f"Copilot rate limit exceeded. Maximum {COPILOT_MAX_REQUESTS_PER_WINDOW} requests per minute.",
+            retry_after=retry_after,
+        )
+    timestamps.append(now)
+    _COPILOT_REQUEST_TIMESTAMPS[user_id] = timestamps
+
+
+def reset_copilot_rate_limits() -> None:
+    _COPILOT_REQUEST_TIMESTAMPS.clear()
+
+
 @router.post("/ask", response_model=CopilotAskResponse)
 async def ask(
     body: CopilotAskRequest,
@@ -28,6 +55,7 @@ async def ask(
     current_user: User = Depends(get_current_user),
 ) -> CopilotAskResponse:
     """Ask the copilot a question about a shipment or active network state."""
+    check_copilot_rate_limit(str(current_user.id))
     shipment: Shipment | None = None
     if body.shipment_id and body.shipment_id.strip():
         shipment = await session.get(Shipment, body.shipment_id.strip())

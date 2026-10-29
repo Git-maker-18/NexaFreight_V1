@@ -37,7 +37,7 @@ export interface UseSSEPositionsReturn {
 /**
  * Constructs the direct SSE endpoint URL with token parameter.
  */
-export function buildSSEUrl(apiUrl: string = BASE_URL, token?: string | null): string {
+export function buildSSEUrl(apiUrl: string = BASE_URL, ticket?: string | null): string {
   // Path-prefix mode (reverse-proxy deployments): a base starting with '/'
   // (e.g. NEXT_PUBLIC_NEXA_API_URL='/api/nexa' + the Next rewrite
   // /api/nexa/:path* -> backend /api/:path*) already carries the API prefix,
@@ -51,8 +51,8 @@ export function buildSSEUrl(apiUrl: string = BASE_URL, token?: string | null): s
   } else {
     url = new URL(`${apiUrl.replace(/\/$/, '')}/api/map/positions/stream`)
   }
-  if (token) {
-    url.searchParams.set('token', token)
+  if (ticket) {
+    url.searchParams.set('ticket', ticket)
   }
   return url.toString()
 }

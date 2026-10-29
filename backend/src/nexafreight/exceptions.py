@@ -102,3 +102,19 @@ class ConflictError(ValidationError):
     def __init__(self, message: str) -> None:
         ValidationError.__init__(self, message=message)
         self.status_code = 409
+
+class RateLimitExceededError(NexaFreightException):
+    """Raised when a user or client exceeds an endpoint rate limit."""
+
+    def __init__(
+        self,
+        message: str = "Rate limit exceeded. Please try again later.",
+        retry_after: int = 60,
+    ) -> None:
+        super().__init__(
+            message=message,
+            status_code=429,
+            details={"retry_after": retry_after},
+        )
+        self.retry_after = retry_after
+

@@ -72,7 +72,13 @@ import logging
 import time
 from collections.abc import AsyncGenerator
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
+from fastapi import Header, Query
+from jose import JWTError
+from nexafreight.auth import create_stream_ticket, decode_access_token, decode_stream_ticket
+from nexafreight.config import Settings, get_settings
+from nexafreight.exceptions import AuthenticationError, InvalidTokenError
+from nexafreight.models.user import User
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -704,14 +710,50 @@ async def _sse_generator(
 # ---------------------------------------------------------------------------
 
 
+
+async def _verify_stream_auth(
+    authorization: Annotated[str | None, Header()] = None,
+    ticket: Annotated[str | None, Query()] = None,
+    settings: Settings = Depends(get_settings),
+) -> None:
+    if ticket:
+        try:
+            decode_stream_ticket(ticket, settings)
+            return
+        except (JWTError, ValueError):
+            raise AuthenticationError("Invalid or expired stream ticket")
+    if authorization:
+        parts = authorization.split()
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            try:
+                decode_access_token(parts[1], settings)
+                return
+            except (JWTError, ValueError):
+                raise InvalidTokenError()
+    raise AuthenticationError("Authentication required: provide ?ticket= or Authorization header")
+
+
+@router.post(
+    "/positions/stream-ticket",
+    summary="Issue short-lived SSE stream ticket",
+    response_description="A short-lived ticket valid for 60 seconds",
+)
+async def create_position_stream_ticket(
+    current_user: User = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, Any]:
+    """Generate a 60-second ticket scoped strictly to position streaming."""
+    ticket = create_stream_ticket(current_user.id, settings, expires_in_seconds=60)
+    return {"ticket": ticket, "expires_in": 60}
+
+
 @router.get(
     "/positions/stream",
     summary="Live SSE position stream",
     response_description="Server-Sent Events stream of POSITION_UPDATE events",
+    dependencies=[Depends(_verify_stream_auth)],
 )
-async def stream_positions(
-    _current_user: Any = Depends(get_current_user),
-) -> StreamingResponse:
+async def stream_positions() -> StreamingResponse:
     """
     SSE stream pushing all current asset positions every 5 seconds.
 

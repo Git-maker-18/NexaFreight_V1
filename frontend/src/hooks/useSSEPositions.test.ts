@@ -13,9 +13,9 @@ describe('useSSEPositions helper functions', () => {
       expect(url).toBe('http://127.0.0.1:8000/api/map/positions/stream')
     })
 
-    it('appends token query param when token is provided', () => {
+    it('appends ticket query param when ticket is provided', () => {
       const url = buildSSEUrl('http://localhost:8000', 'jwt-token-123')
-      expect(url).toBe('http://localhost:8000/api/map/positions/stream?token=jwt-token-123')
+      expect(url).toBe('http://localhost:8000/api/map/positions/stream?ticket=jwt-token-123')
     })
 
     it('path-prefix apiUrl builds a same-origin proxied URL (reverse-proxy deployments)', () => {
@@ -27,7 +27,7 @@ describe('useSSEPositions helper functions', () => {
         const url = buildSSEUrl('/api/nexa', 'jwt-token-123')
         // rewrite: /api/nexa/map/positions/stream -> backend /api/map/positions/stream
         expect(url).toBe(
-          'https://preview.example.app/api/nexa/map/positions/stream?token=jwt-token-123'
+          'https://preview.example.app/api/nexa/map/positions/stream?ticket=jwt-token-123'
         )
       } finally {
         delete (globalThis as Record<string, unknown>).window

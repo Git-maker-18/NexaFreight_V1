@@ -28,14 +28,13 @@ logger = logging.getLogger(__name__)
 
 async def get_current_user(
     authorization: Annotated[str | None, Header()] = None,
-    token: Annotated[str | None, Query()] = None,
     db: AsyncSession = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
 ) -> User:
-    """Extract and validate JWT from Authorization header or token query parameter.
+    """Extract and validate JWT from Authorization header.
 
     This dependency:
-    1. Extracts Bearer token from Authorization header or ?token= query parameter (for SSE)
+    1. Extracts Bearer token from Authorization header
     2. Decodes and verifies JWT signature and expiration
     3. Loads user from database
     4. Confirms user is active
@@ -47,8 +46,6 @@ async def get_current_user(
         if len(parts) != 2 or parts[0].lower() != "bearer":
             raise InvalidTokenError()
         raw_token = parts[1]
-    elif token:
-        raw_token = token
     else:
         raise AuthenticationError("Missing authentication token")
 

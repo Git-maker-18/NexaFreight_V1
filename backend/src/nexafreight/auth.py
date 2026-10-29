@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -141,3 +142,49 @@ def decode_access_token(token: str, settings: Settings | None = None) -> TokenPa
         raise ValueError("Token missing 'exp' claim")
 
     return TokenPayload(**payload)
+
+def create_stream_ticket(
+    user_id: int | str,
+    settings: Settings | None = None,
+    expires_in_seconds: int = 60,
+) -> str:
+    """Create a short-lived (60s) single-scope ticket for SSE stream authentication."""
+    if settings is None:
+        settings = get_settings()
+    now = datetime.now(UTC)
+    expires = now + timedelta(seconds=expires_in_seconds)
+
+    payload = {
+        "sub": str(user_id),
+        "scope": "stream_positions",
+        "iat": int(now.timestamp()),
+        "exp": int(expires.timestamp()),
+    }
+    return jwt.encode(
+        payload,
+        settings.jwt_secret.get_secret_value(),
+        algorithm=settings.jwt_algorithm,
+    )
+
+
+def decode_stream_ticket(
+    ticket: str,
+    settings: Settings | None = None,
+) -> dict[str, Any]:
+    """Decode and verify an SSE stream ticket.
+
+    Raises:
+        JWTError: If ticket is invalid, expired, or malformed
+        ValueError: If ticket missing required claims or scope is not stream_positions
+    """
+    if settings is None:
+        settings = get_settings()
+    payload = jwt.decode(
+        ticket,
+        settings.jwt_secret.get_secret_value(),
+        algorithms=[settings.jwt_algorithm],
+    )
+    if payload.get("scope") != "stream_positions":
+        raise ValueError("Invalid ticket scope")
+    return payload
+
