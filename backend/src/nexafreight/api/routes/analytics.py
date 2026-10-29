@@ -47,6 +47,7 @@ from nexafreight.schemas.ops import (
 )
 from nexafreight.services.alert_engine import latest_planned_arrival
 from nexafreight.services.financial_engine import (
+    CARBON_COST_PER_KG,
     CO2_G_PER_T_KM,
     DEMURRAGE_DAILY_RATE,
     DEMURRAGE_FREE_DAYS,
@@ -148,10 +149,10 @@ def _shipment_freight_carbon(shipment) -> tuple[float, float]:
         mode = str(leg.transport_mode)
         freight += calculate_freight_cost(km, weight_t, mode)
         if leg.co2_kg is not None:
-            carbon += leg.co2_kg * 0.08
+            carbon += leg.co2_kg * CARBON_COST_PER_KG
         else:
             factor = CO2_G_PER_T_KM.get(mode, CO2_G_PER_T_KM["SEA"])
-            carbon += factor * km * weight_t / 1000.0 * 0.08
+            carbon += factor * km * weight_t / 1000.0 * CARBON_COST_PER_KG
     return freight, carbon
 
 

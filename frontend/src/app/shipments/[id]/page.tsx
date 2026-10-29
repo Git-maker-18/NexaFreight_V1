@@ -137,7 +137,7 @@ function LiveTransitStatusStrip({ shipment, portFeats, p50Hours }: { shipment: S
             {variance}
             <span className="text-[9.5px] font-normal" style={{ color: varianceTone }}>{varianceFlag}</span>
           </span>
-          <span className="text-[9.5px] text-[var(--text-secondary)]">REALIZED SLIP · ML P50 {(p50Hours ?? 0).toFixed(1)} H</span>
+          <span className="text-[9.5px] text-[var(--text-secondary)]">REALIZED SLIP · EMPIRICAL P50 {(p50Hours ?? 0).toFixed(1)} H</span>
         </div>
         <div className={cell}>
           <span className="text-[10px] text-[var(--text-secondary)] uppercase tracking-[0.08em]">Current Corridor</span>
@@ -353,13 +353,13 @@ function ShipmentDossierPageContent() {
             <section
               className="p-4 rounded-[3px] border bg-[var(--paper)]"
               style={{ borderColor: 'var(--border-hairline)' }}
-              aria-label="ETA Prediction & Machine Learning Assessment"
+              aria-label="Empirical Transit Quantiles & SLA Risk Assessment"
             >
               <div className="flex items-center justify-between pb-3 border-b border-[var(--border-hairline)] mb-4">
                 <div className="flex items-center gap-2">
                   <Activity className="w-4 h-4 text-[var(--cobalt)]" />
                   <h3 className="font-ui text-[14px] font-bold text-[var(--ink)]">
-                    Machine Learning ETA & SLA Risk Prediction
+                    Empirical Transit Quantiles & SLA Risk Assessment
                   </h3>
                 </div>
                 <ProvenanceChip provenance={shipment?.status === 'DELIVERED' ? 'REAL' : (prediction?.provenance || 'DERIVED')} size="sm" />
@@ -380,7 +380,7 @@ function ShipmentDossierPageContent() {
                         : '0.0 h'}
                     </span>
                     <span className="text-[10px] text-[var(--text-secondary)]">
-                      {shipment?.status === 'DELIVERED' ? 'voyage completed' : 'quantile regression'}
+                      {shipment?.status === 'DELIVERED' ? 'voyage completed' : 'empirical lane residual'}
                     </span>
                   </div>
                 </div>

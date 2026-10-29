@@ -5,6 +5,7 @@ timestamps, and computes GLEC CO2 emissions.
 """
 
 from __future__ import annotations
+from nexafreight.core.constants import GLEC_CO2_G_PER_TONNE_KM
 
 import json
 import logging
@@ -46,12 +47,7 @@ MODE_BY_LEG_TYPE: dict[str, str] = {
 }
 
 # GLEC CO2 factors in g CO2 per tonne-km
-GLEC_CO2_G_PER_TONNE_KM = {
-    "SEA": 6.5,
-    "AIR": 500.0,
-    "ROAD": 62.0,
-    "RAIL": 22.0,
-}
+# Authoritative multimodal emission factors imported from nexafreight.core.constants
 
 from nexafreight.core import params
 

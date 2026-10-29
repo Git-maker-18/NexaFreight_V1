@@ -646,6 +646,7 @@ async def shipment_financials(
     from nexafreight.services.alert_engine import latest_planned_arrival
     from nexafreight.services.disruption_detector import TONNES_PER_CONTAINER
     from nexafreight.services.financial_engine import (
+        CARBON_COST_PER_KG,
         CO2_G_PER_T_KM,
         SLA_PENALTY_PCT_PER_DAY,
         calculate_freight_cost,
@@ -709,7 +710,7 @@ async def shipment_financials(
         co2_kg = leg.co2_kg
         if co2_kg is None:
             co2_kg = CO2_G_PER_T_KM.get(mode, CO2_G_PER_T_KM["SEA"]) * km * weight_t / 1000.0
-        carbon += co2_kg * 0.08
+        carbon += co2_kg * CARBON_COST_PER_KG
 
     pnl = generate_pnl_snapshot(
         revenue_usd=revenue,

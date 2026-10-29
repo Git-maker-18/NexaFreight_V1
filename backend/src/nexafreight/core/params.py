@@ -6,6 +6,7 @@ with provenance passthrough. The cache should be refreshed periodically or at st
 """
 
 from __future__ import annotations
+from nexafreight.core.constants import GLEC_CO2_G_PER_TONNE_KM
 
 import logging
 from typing import Any, NamedTuple, overload, Literal
@@ -88,11 +89,11 @@ FALLBACK_DEFAULTS: dict[str, Any] = {
     "rail.cost_usd_per_km": 0.065,
     "air.cost_usd_per_km": 0.065,
     "road.cost_usd_per_km": 0.065,
-    "co2.sea_g_per_tonne_km": 62.0,
-    "co2.rail_g_per_tonne_km": 62.0,
-    "co2.air_g_per_tonne_km": 62.0,
-    "co2.road_g_per_tonne_km": 62.0,
-    "co2.road_g_with_toll": 62.0,
+    "co2.sea_g_per_tonne_km": GLEC_CO2_G_PER_TONNE_KM["SEA"],
+    "co2.rail_g_per_tonne_km": GLEC_CO2_G_PER_TONNE_KM["RAIL"],
+    "co2.air_g_per_tonne_km": GLEC_CO2_G_PER_TONNE_KM["AIR"],
+    "co2.road_g_per_tonne_km": GLEC_CO2_G_PER_TONNE_KM["ROAD"],
+    "co2.road_g_with_toll": GLEC_CO2_G_PER_TONNE_KM["ROAD"],
     "disruption.congestion.ratio_p90": 2.5,  # legacy alias of ratio_critical
     "disruption.delay.vessel_h": 24.0,
     "disruption.delay.weather_h": 48.0,

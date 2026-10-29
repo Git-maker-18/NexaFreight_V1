@@ -282,7 +282,7 @@ export default function ShipmentInspectorPanel({
           {/* ─── ML prediction ──────────────────── */}
           <section aria-label="Delay prediction">
             <p className="text-xs uppercase tracking-wide mb-1" style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-ui)' }}>
-              ML delay prediction
+              SLA risk & delay estimate
             </p>
             {prediction ? (
               <div className="text-sm space-y-1 rounded p-2" style={{ border: '1px solid var(--border-hairline)', backgroundColor: 'var(--paper)' }}>

@@ -20,6 +20,7 @@ fx USD/INR = 88):
 """
 
 from __future__ import annotations
+from nexafreight.core.constants import CARBON_COST_PER_KG, GLEC_CO2_G_PER_TONNE_KM
 
 import math
 from dataclasses import dataclass, field
@@ -68,12 +69,7 @@ FREIGHT_RATE_PER_T_KM: dict[str, float] = {
 #: CO2 emission factors, grams per tonne-km, by transport mode.
 #: SEA: GLEC v3.2 deep-sea container 7.6 (>=8k TEU) - 9.1 (3-8k TEU);
 #: 8.0 = mid for the modeled vessel mix (was 6.5, below the entire band).
-CO2_G_PER_T_KM: dict[str, float] = {
-    "SEA": 8.0,
-    "AIR": 500.0,
-    "ROAD": 62.0,
-    "RAIL": 22.0,
-}
+CO2_G_PER_T_KM: dict[str, float] = GLEC_CO2_G_PER_TONNE_KM
 
 #: Carbon price — USD per kg CO2.
 CARBON_COST_PER_KG: float = 0.08
