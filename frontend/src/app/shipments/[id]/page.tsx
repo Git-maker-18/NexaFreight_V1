@@ -358,7 +358,10 @@ function ShipmentDossierPageContent() {
               <div className="flex items-center justify-between pb-3 border-b border-[var(--border-hairline)] mb-4">
                 <div className="flex items-center gap-2">
                   <Activity className="w-4 h-4 text-[var(--cobalt)]" />
-                  <h3 className="font-ui text-[14px] font-bold text-[var(--ink)]">
+                  <h3
+                    className="font-ui text-[14px] font-bold text-[var(--ink)] cursor-help"
+                    title="Service-level empirical bands from synthetic DataCo delays. Mode (SEA/RAIL/AIR) is a proxy for DataCo shipping class (Standard/Second/First)."
+                  >
                     Empirical Transit Quantiles & SLA Risk Assessment
                   </h3>
                 </div>
@@ -368,7 +371,10 @@ function ShipmentDossierPageContent() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-[12px]">
                 {/* P50 Expected Delay */}
                 <div className="p-3 rounded-[2px] border border-[var(--border-hairline)] bg-[var(--bg-subtle)] flex flex-col gap-1">
-                  <span className="text-[10px] text-[var(--text-secondary)] uppercase">
+                  <span
+                    className="text-[10px] text-[var(--text-secondary)] uppercase cursor-help"
+                    title="Empirical transit residuals from DataCo historical orders. Mode (SEA/RAIL/AIR) acts as a proxy for DataCo customer shipping class."
+                  >
                     P50 Expected Delay
                   </span>
                   <div className="flex items-baseline gap-2">
@@ -387,7 +393,10 @@ function ShipmentDossierPageContent() {
 
                 {/* SLA Risk Level */}
                 <div className="p-3 rounded-[2px] border border-[var(--border-hairline)] bg-[var(--bg-subtle)] flex flex-col gap-1">
-                  <span className="text-[10px] text-[var(--text-secondary)] uppercase">
+                  <span
+                    className="text-[10px] text-[var(--text-secondary)] uppercase cursor-help"
+                    title="Assessed against promised SLA deadline. Note: Delay risk in DataCo is a synthetic indicator derived from scheduled service days."
+                  >
                     SLA Risk Assessment
                   </span>
                   <div className="flex items-center gap-2">

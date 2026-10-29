@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from httpx import AsyncClient
 
 from nexafreight.enums import LegStatus, ShipmentStatus, TransportMode
+from nexafreight.ml.eta_model import LANE_QUANTILES_TABLE
 from nexafreight.ml.registry import ModelRegistry
 
 
@@ -58,16 +59,16 @@ async def test_predict_eta_serves_lane_quantiles_never_loads_joblib(
         assert data["confidence_interval_width"] == 4.0
         assert data["provenance"] == "DERIVED"
 
-        # 2. AIR mode: residual p10=0.0, p50=1.0, p85=1.0
+        # 2. AIR mode: empirical residual p10=1.0, p50=1.0, p85=1.0
         air_payload = dict(sea_payload, shipping_mode="AIR", scheduled_shipping_days=3.0)
         resp_air = await client.post("/api/predict/eta", json=air_payload, headers=auth_headers)
         assert resp_air.status_code == 200, resp_air.text
         data_air = resp_air.json()
 
-        assert data_air["p10_eta_days"] == 3.0
+        assert data_air["p10_eta_days"] == 4.0
         assert data_air["p50_eta_days"] == 4.0
         assert data_air["p85_eta_days"] == 4.0
-        assert data_air["confidence_interval_width"] == 1.0
+        assert data_air["confidence_interval_width"] == 0.0
         assert data_air["provenance"] == "DERIVED"
 
 
@@ -119,3 +120,49 @@ async def test_shipment_predict_serves_lane_quantiles_never_loads_joblib(
         assert data["provenance"] == "DERIVED"
         assert "delay_p50_hours" in data
         assert "sla_risk_level" in data
+
+
+def test_lane_quantiles_table_matches_data_derivation() -> None:
+    """Test that LANE_QUANTILES_TABLE matches exact empirical quantiles derived from training data."""
+    from scripts.derive_lane_quantiles import derive_lane_quantiles_table
+    derived = derive_lane_quantiles_table()
+
+    for mode in ("SEA", "RAIL", "AIR"):
+        assert derived[mode] == LANE_QUANTILES_TABLE[mode], f"Mismatch for {mode}: {derived[mode]} vs {LANE_QUANTILES_TABLE[mode]}"
+
+    # Verify ROAD and DEFAULT are explicitly documented assumptions
+    assert "ROAD" in LANE_QUANTILES_TABLE
+    assert "DEFAULT" in LANE_QUANTILES_TABLE
+
+
+def test_quantile_validity_condition() -> None:
+    """Verify mathematical quantile validity condition: P(y < q) <= alpha <= P(y <= q)."""
+    import numpy as np
+    import pandas as pd
+    from nexafreight.ml.constants import LABEL_COLUMN, TIME_AXIS_COLUMN, SPLIT_DATES
+    from nexafreight.ml.data_source import load_raw
+
+    raw = load_raw()
+    actual = pd.to_numeric(raw["days_for_shipping_real"], errors="coerce")
+    sched = pd.to_numeric(raw["scheduled_shipping_days"], errors="coerce")
+    valid = actual.notna() & sched.notna() & (actual >= 0) & (sched > 0) & raw[LABEL_COLUMN].notna()
+    raw = raw[valid].reset_index(drop=True)
+    actual = actual[valid].reset_index(drop=True)
+    sched = sched[valid].reset_index(drop=True)
+    y_all = (actual - sched).astype(float)
+
+    time_s = pd.to_datetime(raw[TIME_AXIS_COLUMN], errors="coerce", utc=True)
+    train_end = pd.Timestamp(SPLIT_DATES["train_end"], tz="UTC")
+    df_train = raw[time_s < train_end]
+    y_train = y_all[time_s < train_end]
+
+    for mode in ("SEA", "RAIL", "AIR"):
+        mode_y = y_train[df_train["shipping_mode"] == mode].to_numpy()
+        for alpha, key in [(0.10, "p10"), (0.50, "p50"), (0.85, "p85")]:
+            q = LANE_QUANTILES_TABLE[mode][key]
+            p_less = float(np.mean(mode_y < q))
+            p_leq = float(np.mean(mode_y <= q))
+            assert p_less <= alpha <= p_leq, (
+                f"Invalid quantile for {mode} alpha={alpha}: P(y < {q})={p_less:.4f} "
+                f"> {alpha} or P(y <= {q})={p_leq:.4f} < {alpha}"
+            )

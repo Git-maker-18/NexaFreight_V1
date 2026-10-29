@@ -44,14 +44,18 @@ MIN_TRANSIT_DAYS: float = 0.5
 DEFAULT_SCHEDULED_DAYS: float = 5.0
 
 #: Empirical lane & mode transit quantile residuals (in days).
-#: Calibrated on historical training shipments (2015-2017).
+#: Derived directly from DataCo training distribution (2015-2017).
+#: AIR: P10=1.0, P50=1.0, P85=1.0 (Service proxy: First Class / Same Day)
+#: RAIL: P10=0.0, P50=2.0, P85=4.0 (Service proxy: Second Class)
+#: SEA: P10=-2.0, P50=0.0, P85=2.0 (Service proxy: Standard Class)
+#: ROAD & DEFAULT: Heuristic operational assumptions (0 ROAD rows exist in DataCo).
 #: Provenance: DERIVED.
 LANE_QUANTILES_TABLE: dict[str, dict[str, float]] = {
     "SEA": {"p10": -2.0, "p50": 0.0, "p85": 2.0},
     "RAIL": {"p10": 0.0, "p50": 2.0, "p85": 4.0},
-    "AIR": {"p10": 0.0, "p50": 1.0, "p85": 1.0},
-    "ROAD": {"p10": 0.0, "p50": 1.0, "p85": 2.0},
-    "DEFAULT": {"p10": -1.0, "p50": 0.0, "p85": 2.0},
+    "AIR": {"p10": 1.0, "p50": 1.0, "p85": 1.0},
+    "ROAD": {"p10": 0.0, "p50": 1.0, "p85": 2.0},  # Assumption: no ROAD rows exist in DataCo data
+    "DEFAULT": {"p10": -1.0, "p50": 0.0, "p85": 2.0},  # Assumption: fallback for unmapped modes
 }
 
 

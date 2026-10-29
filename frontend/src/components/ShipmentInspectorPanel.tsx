@@ -281,19 +281,29 @@ export default function ShipmentInspectorPanel({
 
           {/* ─── ML prediction ──────────────────── */}
           <section aria-label="Delay prediction">
-            <p className="text-xs uppercase tracking-wide mb-1" style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-ui)' }}>
+            <p
+              className="text-xs uppercase tracking-wide mb-1 cursor-help"
+              style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-ui)' }}
+              title="Service-level empirical bands from synthetic DataCo delays. Mode (SEA/RAIL/AIR) acts as a proxy for DataCo customer shipping class (Standard/Second/First)."
+            >
               SLA risk & delay estimate
             </p>
             {prediction ? (
               <div className="text-sm space-y-1 rounded p-2" style={{ border: '1px solid var(--border-hairline)', backgroundColor: 'var(--paper)' }}>
-                <div className="flex justify-between items-center">
+                <div
+                  className="flex justify-between items-center"
+                  title="Service-level empirical bands from synthetic DataCo delays. Mode (SEA/RAIL/AIR) is a proxy for DataCo shipping class (Standard/Second/First)."
+                >
                   <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-ui)' }}>P50 delay</span>
                   <div className="flex items-center gap-2">
                     <ProvenanceChip provenance={prediction.provenance} size="xs" />
                     <span className="font-semibold" style={{ color: 'var(--ink)', fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}>{prediction.delay_p50_hours.toFixed(1)} h</span>
                   </div>
                 </div>
-                <div className="flex justify-between">
+                <div
+                  className="flex justify-between"
+                  title="Delay risk estimates reflect DataCo service-class proxies (Standard=SEA, Second=RAIL, First/Same Day=AIR) from synthetic historical label rates."
+                >
                   <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-ui)' }}>SLA risk</span>
                   <span
                     className="font-semibold"

@@ -1,0 +1,189 @@
+{
+  "auc_comparison": {
+    "full_model": 0.7273,
+    "scheduled_shipping_days_alone": 0.7289,
+    "joint_mode_sched": 0.7289,
+    "mode_alone": 0.7095
+  },
+  "delta_vs_best_single_feature": {
+    "mean": -0.001562708912609807,
+    "ci_95": [
+      -0.007507238422152338,
+      0.0044276119466463235
+    ]
+  },
+  "delta_vs_joint_baseline": {
+    "mean": -0.001562708912609807,
+    "ci_95": [
+      -0.007507238422152338,
+      0.0044276119466463235
+    ]
+  },
+  "delta_vs_mode_baseline": {
+    "mean": 0.01779453455856568,
+    "ci_95": [
+      0.010506725209421397,
+      0.02544798796589936
+    ]
+  },
+  "distance_leg_distribution_train": {
+    "total_distance_km": {
+      "unique_count": 1,
+      "std": 0.0,
+      "value_counts": {
+        "0": 46711
+      }
+    },
+    "leg_count": {
+      "unique_count": 1,
+      "std": 0.0,
+      "value_counts": {
+        "0": 46711
+      }
+    }
+  },
+  "quantile_validity": {
+    "train": {
+      "AIR": {
+        "0.1": {
+          "q": 0.0,
+          "p_less": 0.0,
+          "p_leq": 0.0,
+          "alpha": 0.1,
+          "valid": false
+        },
+        "0.5": {
+          "q": 1.0,
+          "p_less": 0.0,
+          "p_leq": 1.0,
+          "alpha": 0.5,
+          "valid": true
+        },
+        "0.85": {
+          "q": 1.0,
+          "p_less": 0.0,
+          "p_leq": 1.0,
+          "alpha": 0.85,
+          "valid": true
+        }
+      },
+      "RAIL": {
+        "0.1": {
+          "q": 0.0,
+          "p_less": 0.0,
+          "p_leq": 0.2005,
+          "alpha": 0.1,
+          "valid": true
+        },
+        "0.5": {
+          "q": 2.0,
+          "p_less": 0.3996,
+          "p_leq": 0.5995,
+          "alpha": 0.5,
+          "valid": true
+        },
+        "0.85": {
+          "q": 4.0,
+          "p_less": 0.7987,
+          "p_leq": 1.0,
+          "alpha": 0.85,
+          "valid": true
+        }
+      },
+      "SEA": {
+        "0.1": {
+          "q": -2.0,
+          "p_less": 0.0,
+          "p_leq": 0.2005,
+          "alpha": 0.1,
+          "valid": true
+        },
+        "0.5": {
+          "q": 0.0,
+          "p_less": 0.4011,
+          "p_leq": 0.6005,
+          "alpha": 0.5,
+          "valid": true
+        },
+        "0.85": {
+          "q": 2.0,
+          "p_less": 0.7987,
+          "p_leq": 1.0,
+          "alpha": 0.85,
+          "valid": true
+        }
+      }
+    },
+    "test": {
+      "AIR": {
+        "0.1": {
+          "q": 0.0,
+          "p_less": 0.0,
+          "p_leq": 0.0,
+          "alpha": 0.1,
+          "valid": false
+        },
+        "0.5": {
+          "q": 1.0,
+          "p_less": 0.0,
+          "p_leq": 1.0,
+          "alpha": 0.5,
+          "valid": true
+        },
+        "0.85": {
+          "q": 1.0,
+          "p_less": 0.0,
+          "p_leq": 1.0,
+          "alpha": 0.85,
+          "valid": true
+        }
+      },
+      "RAIL": {
+        "0.1": {
+          "q": 0.0,
+          "p_less": 0.0,
+          "p_leq": 0.1973,
+          "alpha": 0.1,
+          "valid": true
+        },
+        "0.5": {
+          "q": 2.0,
+          "p_less": 0.3945,
+          "p_leq": 0.5971,
+          "alpha": 0.5,
+          "valid": true
+        },
+        "0.85": {
+          "q": 4.0,
+          "p_less": 0.7992,
+          "p_leq": 1.0,
+          "alpha": 0.85,
+          "valid": true
+        }
+      },
+      "SEA": {
+        "0.1": {
+          "q": -2.0,
+          "p_less": 0.0,
+          "p_leq": 0.2005,
+          "alpha": 0.1,
+          "valid": true
+        },
+        "0.5": {
+          "q": 0.0,
+          "p_less": 0.4003,
+          "p_leq": 0.6003,
+          "alpha": 0.5,
+          "valid": true
+        },
+        "0.85": {
+          "q": 2.0,
+          "p_less": 0.7987,
+          "p_leq": 1.0,
+          "alpha": 0.85,
+          "valid": true
+        }
+      }
+    }
+  }
+}
