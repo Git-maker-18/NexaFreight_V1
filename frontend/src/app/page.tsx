@@ -123,6 +123,7 @@ function OverviewCockpit() {
   // Layer buckets
   const [activeLayers, setActiveLayers] = useState<Record<string, boolean>>({
     ports: true,
+    active_ports_only: true,
     routes: true,
     maritime: true,
     disruptions: true,

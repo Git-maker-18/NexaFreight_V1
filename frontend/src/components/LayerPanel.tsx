@@ -4,7 +4,7 @@ import { memo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Ship, Anchor, AlertTriangle, CloudLightning,
-  Plane, Sun,Activity, X
+  Plane, Sun, Activity, X, Filter
 } from 'lucide-react';
 
 interface LayerPanelProps {
@@ -84,7 +84,9 @@ function LayerPanel({
       case 'maritime':
         return data.maritime_ships?.length ?? (data.maritime_ports?.length ? data.maritime_ports.length : undefined);
       case 'ports':
-        return data.maritime_ports?.length ?? 48;
+        return data.maritime_ports?.length ?? 578;
+      case 'active_ports_only':
+        return 16;
       case 'routes':
         return 12;
       case 'disruptions':
@@ -119,9 +121,15 @@ function LayerPanel({
         {
           key: 'ports',
           label: 'Global Ports',
-          description: 'UN/LOCODE container hubs & terminals',
+          description: 'All 578 UN/LOCODE container hubs',
           icon: Anchor,
           count: getEntityCount('ports'),
+        },
+        {
+          key: 'active_ports_only',
+          label: 'In-Transit Ports Only',
+          description: 'Focus on active origins, destinations & chokepoints',
+          icon: Filter,
         },
       ],
     },

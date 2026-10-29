@@ -414,6 +414,52 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
   const seaRoutesRef = useRef<any[]>([]);
   const [routesLoadedVer, setRoutesLoadedVer] = useState(0);
   const liveMarkersRef = useRef<Map<string, LiveMarkerRecord>>(new Map());
+  const allPortsFeaturesRef = useRef<any[]>([]);
+
+  const filterPortsFeatures = useCallback((rawFeatures: any[], activeOnly: boolean, routesFeatures: any[]) => {
+    if (!activeOnly) return rawFeatures;
+
+    const routeEndpoints: [number, number][] = [];
+    for (const rf of routesFeatures || []) {
+      const g = rf?.geometry;
+      if (g?.type === 'LineString' && Array.isArray(g.coordinates) && g.coordinates.length >= 2) {
+        routeEndpoints.push(g.coordinates[0]);
+        routeEndpoints.push(g.coordinates[g.coordinates.length - 1]);
+      } else if (g?.type === 'MultiLineString' && Array.isArray(g.coordinates)) {
+        const firstPart = g.coordinates[0];
+        const lastPart = g.coordinates[g.coordinates.length - 1];
+        if (firstPart?.length) routeEndpoints.push(firstPart[0]);
+        if (lastPart?.length) routeEndpoints.push(lastPart[lastPart.length - 1]);
+      }
+    }
+
+    const ACTIVE_CORRIDOR_LOCODES = new Set([
+      'AUSYD', 'INMAA', 'INCOK', 'INCCU', 'INVTZ', 'JPTYO', 'NLRTM', 'SGSIN',
+      'USLAX', 'USNYC', 'ZADUR', 'CNSHA', 'AEBUE', 'INJNP', 'INMUN', 'INHAL',
+      'EGPSD', 'DJJIB', 'PABLB', 'PAONX', 'MYPKG', 'HKHKG', 'KRPUS', 'DEHAM',
+      'BEANR', 'GBSOU', 'ESVLC', 'ITGOA', 'GRPIR', 'AEAUH', 'THLCH', 'VNSGN',
+      'INDEL', 'INHYD', 'INTKG', 'INPUN', 'INAHM', 'INBLH'
+    ]);
+
+    return (rawFeatures || []).filter(f => {
+      const p = f?.properties || {};
+      const locode = String(p.un_locode || p.locode || '').toUpperCase();
+      if (ACTIVE_CORRIDOR_LOCODES.has(locode)) return true;
+      if (Number(p.congestion_index || 0) >= 1.35) return true;
+
+      const coords = (f?.geometry as any)?.coordinates;
+      if (Array.isArray(coords) && coords.length >= 2) {
+        const [pLon, pLat] = coords;
+        for (const [rLon, rLat] of routeEndpoints) {
+          if (Math.abs(pLon - rLon) < 0.45 && Math.abs(pLat - rLat) < 0.45) {
+            return true;
+          }
+        }
+      }
+      return false;
+    });
+  }, []);
+
 
   const pStyle = `background:var(--paper,#F6F7F4);border:1px solid var(--border-hairline,#D4D5D0);border-radius:2px;padding:11px 12px;color:var(--ink,#16181D);font-family:'IBM Plex Mono','JetBrains Mono',ui-monospace,monospace;`;
   const htmlEsc = (s: any): string => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -1790,7 +1836,10 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
               },
             }));
           }
-          const portsFC = { type: 'FeatureCollection' as const, features };
+          allPortsFeaturesRef.current = features;
+          const isFilterActive = (activeLayers as any).active_ports_only !== false;
+          const displayFeatures = filterPortsFeatures(features, isFilterActive, routesFeaturesRef.current);
+          const portsFC = { type: 'FeatureCollection' as const, features: displayFeatures };
           const src = map.getSource('ports') as maplibregl.GeoJSONSource | undefined;
           if (src) {
             src.setData(portsFC as never);
@@ -2669,6 +2718,17 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
     setVis([], true);
   }, [mapReady, activeLayers, setVis]);
 
+
+  // ── Reactive filter for In-Transit / Active Ports Only ──
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const src = mapRef.current.getSource('ports') as maplibregl.GeoJSONSource | undefined;
+    if (!src || !allPortsFeaturesRef.current?.length) return;
+    const isFilterActive = (activeLayers as any).active_ports_only !== false;
+    const displayFeatures = filterPortsFeatures(allPortsFeaturesRef.current, isFilterActive, routesFeaturesRef.current);
+    src.setData({ type: 'FeatureCollection', features: displayFeatures } as never);
+  }, [mapReady, (activeLayers as any).active_ports_only, routesLoadedVer, filterPortsFeatures]);
+
   // ── NexaFreight Ports & Routes Reactive Loader ──
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
@@ -2717,9 +2777,12 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
           }));
         }
 
+        allPortsFeaturesRef.current = features;
+        const isFilterActive = (activeLayers as any).active_ports_only !== false;
+        const displayFeatures = filterPortsFeatures(features, isFilterActive, routesFeaturesRef.current);
         const src = map.getSource('ports') as maplibregl.GeoJSONSource | undefined;
         if (src) {
-          src.setData({ type: 'FeatureCollection', features } as never);
+          src.setData({ type: 'FeatureCollection', features: displayFeatures } as never);
         }
       }).catch(err => {
         console.warn('[NexaFreight] Failed to load ports:', err);

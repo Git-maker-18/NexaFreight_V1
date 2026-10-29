@@ -1,0 +1,55 @@
+name: Realtime Order Drip Simulation
+
+on:
+  schedule:
+    # Run twice daily on weekdays (00:00 UTC and 12:00 UTC)
+    - cron: '0 0,12 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      per_day:
+        description: 'Number of orders to drip (default: 8)'
+        required: false
+        default: '8'
+      backfill:
+        description: 'Number of prior days to backfill (0 for today only)'
+        required: false
+        default: '0'
+
+permissions:
+  contents: read
+
+jobs:
+  drip-orders:
+    name: Autonomous Order Intake & Multimodal Planning
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Execute Autonomous Order Drip
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'nexafreight-production-jwt-secret-min32chars' }}
+        run: |
+          if [ "${{ github.event.inputs.backfill }}" != "" ] && [ "${{ github.event.inputs.backfill }}" != "0" ]; then
+            echo "Running drip simulation with backfill ${{ github.event.inputs.backfill }} days..."
+            python scripts/21_drip_orders.py --backfill ${{ github.event.inputs.backfill }} --per-day ${{ github.event.inputs.per_day || 8 }}
+          else
+            echo "Running daily order drip..."
+            python scripts/21_drip_orders.py --once --per-day ${{ github.event.inputs.per_day || 8 }}
+          fi
