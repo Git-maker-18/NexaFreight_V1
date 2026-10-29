@@ -8,7 +8,6 @@ import {
   Package,
   AlertTriangle,
   BarChart3,
-  HeartPulse,
   LogOut,
   User as UserIcon,
 } from 'lucide-react';
@@ -70,7 +69,7 @@ function TacticalNavRailComponent({
 
   const effectiveAlertCount = propAlertCount !== undefined ? propAlertCount : internalAlertCount;
 
-  // Keyboard navigation between routes (1–5)
+  // Keyboard navigation between routes (1–4)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as Element)?.tagName)) return;
@@ -78,7 +77,6 @@ function TacticalNavRailComponent({
       if (e.key === '2') router.push('/shipments');
       if (e.key === '3') router.push('/alerts');
       if (e.key === '4') router.push('/insights');
-      if (e.key === '5') router.push('/validation');
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -121,14 +119,6 @@ function TacticalNavRailComponent({
       icon: BarChart3,
       shortcut: '4',
     },
-    {
-      key: 'validation',
-      href: '/validation',
-      label: 'Sensor Calibration',
-      sublabel: 'Validation Matrix & Telemetry',
-      icon: HeartPulse,
-      shortcut: '5',
-    },
   ];
 
   const handleLogout = () => {
@@ -146,7 +136,6 @@ function TacticalNavRailComponent({
       if (item.href === '/shipments' && legacyActiveScreen === 'shipments') return true;
       if (item.href === '/alerts' && legacyActiveScreen === 'disruptions') return true;
       if (item.href === '/insights' && legacyActiveScreen === 'analytics') return true;
-      if (item.href === '/validation' && legacyActiveScreen === 'calibration') return true;
     }
     if (item.href === '/') {
       return pathname === '/';
@@ -198,7 +187,6 @@ function TacticalNavRailComponent({
                     if (item.href === '/shipments') onSelectScreen('shipments');
                     if (item.href === '/alerts') onSelectScreen('disruptions');
                     if (item.href === '/insights') onSelectScreen('analytics');
-                    if (item.href === '/validation') onSelectScreen('calibration');
                   }
                 }}
                 className="relative group w-10 h-10 flex items-center justify-center rounded-[3px] transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--cobalt)]"
