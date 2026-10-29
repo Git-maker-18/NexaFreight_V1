@@ -122,9 +122,9 @@ const tooltipItemStyle = { color: INK, fontSize: 11, fontVariantNumeric: 'tabula
    band = yhat_lower…yhat_upper interval. Degrades honestly per state. */
 
 const DEMAND_LANES: Array<{ category: string; region: string; label: string }> = [
-  { category: 'Electronics', region: 'South Asia', label: 'ELECTRONICS · S. ASIA' },
-  { category: 'Camping & Hiking', region: 'Western Europe', label: 'CAMPING & HIKING · W. EUROPE' },
-  { category: 'Water Sports', region: 'Caribbean', label: 'WATER SPORTS · CARIBBEAN' },
+  { category: "Men's Footwear", region: 'Central America', label: "MEN'S APPAREL · C. AMERICA" },
+  { category: 'Water Sports', region: 'Western Europe', label: 'MARITIME GEAR · W. EUROPE' },
+  { category: 'Camping & Hiking', region: 'Central America', label: 'OVERLAND FREIGHT · C. AMERICA' },
 ];
 
 type FcstPoint = {

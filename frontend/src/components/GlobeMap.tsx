@@ -3,6 +3,11 @@
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
 import * as maplibregl from 'maplibre-gl';
 
+// Configure local static MapLibre GL worker to prevent worker resolution failures
+if (typeof window !== 'undefined' && typeof (maplibregl as any).setWorkerUrl === 'function') {
+  (maplibregl as any).setWorkerUrl('/maplibre-gl-worker.mjs');
+}
+
 
 /* Map pigment constants — were lib/map-palette.ts before Phase 0 removed it.
  * Values mirror the `--map-*` custom properties in globals.css; the palette is
@@ -956,43 +961,16 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     
-    // Robust, zero-failure CARTO tiles (Positron for paper mode, Dark Matter for dark mode)
+    // OpenFreeMap Positron (clean paper cartography, no API key, zero watermarks)
     const isPaper = initialStyleRef.current === 'paper';
-    const basemapStyle: any = {
-      version: 8,
-      sources: {
-        'carto-basemap': {
-          type: 'raster',
-          tiles: isPaper
-            ? [
-                'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-                'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-                'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-              ]
-            : [
-                'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-                'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-                'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-              ],
-          tileSize: 256,
-          attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-        },
-      },
-      layers: [
-        {
-          id: 'carto-basemap-layer',
-          type: 'raster',
-          source: 'carto-basemap',
-          minzoom: 0,
-          maxzoom: 20,
-        },
-      ],
-    };
+    const openFreeMapStyle = isPaper
+      ? 'https://tiles.openfreemap.org/styles/positron'
+      : 'https://tiles.openfreemap.org/styles/dark';
 
     const container = containerRef.current;
     const baseOptions = {
       container,
-      style: basemapStyle,
+      style: openFreeMapStyle,
       center: [25.48, 42.70] as [number, number], zoom: 6.5, minZoom: 1.5, maxZoom: 18,
       attributionControl: false as const,
       maxPitch: 85,
