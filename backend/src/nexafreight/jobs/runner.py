@@ -19,6 +19,7 @@ async def run_nightly(session: AsyncSession) -> dict:
             detail = await job(session)
             report[name] = {"status": "ok", "detail": detail}
         except Exception as exc:  # noqa: BLE001 - report must always build
+            await session.rollback()
             logger.error("nightly_job_failed", job=name, error=str(exc))
             report[name] = {"status": "error", "detail": str(exc)[:300]}
             

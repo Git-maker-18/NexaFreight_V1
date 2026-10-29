@@ -11,7 +11,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-*An enterprise-grade platform uniting real-time AIS vessel telemetry, intermodal route optimization, predictive delay machine learning, automated disruption recovery, and an AI Operations Copilot powered by Google Gemini.*
+*A multimodal logistics control tower uniting real-time AIS vessel telemetry, intermodal route optimization, predictive delay machine learning, automated disruption recovery, and an AI Operations Copilot powered by Google Gemini.*
 
 ---
 

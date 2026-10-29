@@ -65,11 +65,12 @@ async def seed_all(session: AsyncSession) -> None:
     # 1. Users
     # -------------------------------------------------------------------------
     logger.info("Seeding users...")
+    seed_pwd = os.environ.get("SEED_PASSWORD") or secrets.token_urlsafe(16)
     users_to_seed = [
-        ("admin@nexafreight.local", "admin123", "System Administrator", UserRole.ADMIN),
-        ("operator@nexafreight.local", "operator123", "Operations Manager", UserRole.OPERATOR),
-        ("viewer@nexafreight.local", "viewer123", "Dashboard Viewer", UserRole.VIEWER),
-        ("operator@nexafreight.dev", os.environ.get("SEED_PASSWORD") or secrets.token_urlsafe(16), "Dev Operator", UserRole.OPERATOR),
+        ("admin@nexafreight.local", seed_pwd, "System Administrator", UserRole.ADMIN),
+        ("operator@nexafreight.local", seed_pwd, "Operations Manager", UserRole.OPERATOR),
+        ("viewer@nexafreight.local", seed_pwd, "Dashboard Viewer", UserRole.VIEWER),
+        ("operator@nexafreight.dev", seed_pwd, "Dev Operator", UserRole.OPERATOR),
     ]
     for email, pwd, name, role in users_to_seed:
         res = await session.execute(select(User).where(User.email == email))

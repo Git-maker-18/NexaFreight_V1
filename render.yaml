@@ -14,3 +14,7 @@ services:
         generateValue: true
       - key: RUN_MIGRATIONS
         value: "false"
+      - key: ENVIRONMENT
+        value: "production"
+      - key: ENABLE_SCHEDULER
+        value: "false"

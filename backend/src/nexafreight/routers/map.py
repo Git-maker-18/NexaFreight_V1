@@ -640,6 +640,7 @@ async def _get_warehouses_cached(
 async def _sse_generator(
     interval_s: float = _SSE_INTERVAL_S,
     heartbeat_s: float = _HEARTBEAT_INTERVAL_S,
+    max_lifetime_s: float = 1800.0,
 ) -> AsyncGenerator[str, None]:
     """
     Async generator that produces SSE-formatted strings for the position stream.
@@ -669,8 +670,12 @@ async def _sse_generator(
         Send an empty-array POSITION_UPDATE: `data: []`. Do not close.
     """
     elapsed_since_heartbeat: float = 0.0
+    start_time: float = asyncio.get_event_loop().time()
 
     while True:
+        if asyncio.get_event_loop().time() - start_time >= max_lifetime_s:
+            logger.info("SSE position stream reached max lifetime (%s s); closing connection", max_lifetime_s)
+            return
         try:
             positions = await _get_all_positions()
         except asyncio.CancelledError:
@@ -766,7 +771,7 @@ async def stream_positions() -> StreamingResponse:
     The stream is infinite until the client disconnects.
     """
     return StreamingResponse(
-        _sse_generator(),
+        _sse_generator(max_lifetime_s=1800.0),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

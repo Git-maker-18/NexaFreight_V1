@@ -35,7 +35,8 @@ export interface UseSSEPositionsReturn {
 }
 
 /**
- * Constructs the direct SSE endpoint URL with token parameter.
+ * Constructs the direct SSE endpoint URL with ticket parameter.
+ * The URL carries ONLY the single-use ticket, NEVER the user JWT.
  */
 export function buildSSEUrl(apiUrl: string = BASE_URL, ticket?: string | null): string {
   // Path-prefix mode (reverse-proxy deployments): a base starting with '/'
@@ -55,6 +56,46 @@ export function buildSSEUrl(apiUrl: string = BASE_URL, ticket?: string | null): 
     url.searchParams.set('ticket', ticket)
   }
   return url.toString()
+}
+
+/**
+ * Requests a short-lived, single-use ticket for the SSE stream endpoint.
+ */
+export async function fetchStreamTicket(
+  apiUrl: string = BASE_URL,
+  token?: string | null
+): Promise<string> {
+  let endpoint: string
+  if (apiUrl.startsWith('/')) {
+    const origin =
+      typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
+    endpoint = new URL(`${apiUrl.replace(/\/$/, '')}/map/positions/stream-ticket`, origin).toString()
+  } else {
+    endpoint = `${apiUrl.replace(/\/$/, '')}/api/map/positions/stream-ticket`
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers,
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to obtain stream ticket: HTTP ${response.status}`)
+  }
+
+  const data = await response.json()
+  if (!data?.ticket) {
+    throw new Error('Response did not contain a valid stream ticket')
+  }
+
+  return data.ticket
 }
 
 /**
@@ -125,7 +166,7 @@ export function parsePositionPayload(
 
 /**
  * React hook that connects to NexaFreight's live position SSE stream
- * (/api/map/positions/stream) and maintains an up-to-date map of moving asset positions.
+ * (/api/map/positions/stream) using single-use tickets and maintains an up-to-date map of moving asset positions.
  */
 export function useSSEPositions(
   options: UseSSEPositionsOptions = {}
@@ -165,56 +206,73 @@ export function useSSEPositions(
       return
     }
 
-    const connect = () => {
+    const connect = async () => {
       if (isCancelled) return
 
-      const sseUrl = buildSSEUrl(apiUrl, activeToken)
-      console.log('[useSSEPositions] Connecting EventSource to:', apiUrl + '/api/map/positions/stream')
+      try {
+        const ticket = await fetchStreamTicket(apiUrl, activeToken)
+        if (isCancelled) return
 
-      const es = new EventSource(sseUrl)
-      esRef.current = es
+        const sseUrl = buildSSEUrl(apiUrl, ticket)
+        console.log('[useSSEPositions] Connecting EventSource with single-use ticket to:', sseUrl)
 
-      const processPayload = (raw: string) => {
-        setPositions((prev) => {
-          const { updatedMap, hasChanges } = parsePositionPayload(raw, prev)
-          if (hasChanges) {
-            setLastUpdate(new Date())
-            return updatedMap
-          }
-          return prev
+        const es = new EventSource(sseUrl)
+        esRef.current = es
+
+        const processPayload = (raw: string) => {
+          setPositions((prev) => {
+            const { updatedMap, hasChanges } = parsePositionPayload(raw, prev)
+            if (hasChanges) {
+              setLastUpdate(new Date())
+              return updatedMap
+            }
+            return prev
+          })
+        }
+
+        // Handlers for POSITION_UPDATE, HEARTBEAT, and generic message events
+        es.addEventListener('POSITION_UPDATE', (event: MessageEvent) => {
+          processPayload(event.data)
         })
-      }
 
-      // Handlers for POSITION_UPDATE, HEARTBEAT, and generic message events
-      es.addEventListener('POSITION_UPDATE', (event: MessageEvent) => {
-        processPayload(event.data)
-      })
+        es.addEventListener('HEARTBEAT', () => {
+          setIsConnected(true)
+          setError(null)
+        })
 
-      es.addEventListener('HEARTBEAT', () => {
-        setIsConnected(true)
-        setError(null)
-      })
+        es.onmessage = (event: MessageEvent) => {
+          processPayload(event.data)
+        }
 
-      es.onmessage = (event: MessageEvent) => {
-        processPayload(event.data)
-      }
+        es.onopen = () => {
+          console.log('[useSSEPositions] Connection established to', apiUrl)
+          setIsConnected(true)
+          setError(null)
+        }
 
-      es.onopen = () => {
-        console.log('[useSSEPositions] Connection established to', apiUrl)
-        setIsConnected(true)
-        setError(null)
-      }
+        es.onerror = (err) => {
+          console.warn('[useSSEPositions] Connection error, closing EventSource and refetching ticket:', err)
+          setIsConnected(false)
+          setError(err)
 
-      es.onerror = (err) => {
-        console.warn('[useSSEPositions] Connection error or reconnecting:', err)
-        setIsConnected(false)
-        setError(err)
-
-        // If closed permanently (e.g. server restarted or network drop), schedule a reconnect
-        if (es.readyState === EventSource.CLOSED && !isCancelled) {
-          console.log('[useSSEPositions] Connection closed; retrying in 4s...')
+          // Always close on error so reconnect obtains a fresh single-use ticket
           es.close()
-          esRef.current = null
+          if (esRef.current === es) {
+            esRef.current = null
+          }
+
+          if (!isCancelled) {
+            reconnectTimer = setTimeout(() => {
+              connect()
+            }, 4000)
+          }
+        }
+      } catch (err: unknown) {
+        if (isCancelled) return
+        console.warn('[useSSEPositions] Ticket fetch failed, retrying in 4s:', err)
+        setIsConnected(false)
+        setError(err instanceof Event ? err : new CustomEvent('error', { detail: err }))
+        if (!isCancelled) {
           reconnectTimer = setTimeout(() => {
             connect()
           }, 4000)
@@ -224,7 +282,7 @@ export function useSSEPositions(
 
     connect()
 
-    // Periodic memory audit log (every 60s) to verify bounded size as requested in Step 7
+    // Periodic memory audit log (every 60s) to verify bounded size
     const memoryAuditInterval = setInterval(() => {
       const activeCount = Object.keys(positionsRef.current).length
       console.log(`[useSSEPositions] Telemetry memory audit: ${activeCount} active assets tracked (memory bounded by asset_id keying)`)

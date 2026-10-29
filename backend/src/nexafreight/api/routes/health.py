@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,7 @@ class HealthResponse(BaseModel):
     status: str
     database: str
     version: str
+    ml_models_loaded: bool = False
 
 
 class ValidationCheck(BaseModel):
@@ -60,7 +61,10 @@ async def validation_matrix() -> ValidationMatrixResponse:
 
 @router.get("/", response_model=HealthResponse, tags=["health"])
 @router.get("", response_model=HealthResponse, tags=["health"], include_in_schema=False)
-async def health_check(db: AsyncSession = Depends(get_db_session)) -> HealthResponse:
+async def health_check(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> HealthResponse:
     """Check application and database health.
 
     Returns 200 if app and database are healthy, 503 if database is unreachable.
@@ -87,8 +91,14 @@ async def health_check(db: AsyncSession = Depends(get_db_session)) -> HealthResp
             detail={"status": "unhealthy", "database": "unreachable", "error": str(e)},
         ) from e
 
+    ml_loaded = False
+    reg = getattr(request.app.state, "ml_registry", None)
+    if reg is not None and getattr(reg, "is_loaded", False):
+        ml_loaded = True
+
     return HealthResponse(
         status="healthy",
         database=database_status,
         version="0.1.0",  # From package __version__
+        ml_models_loaded=ml_loaded,
     )

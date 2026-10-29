@@ -149,8 +149,12 @@ def interval_coverage(
 # ---------------------------------------------------------------------------
 class EtaQuantileModel:
     """
-    Inference wrapper around three trained LightGBM quantile boosters
-    (P10 / P50 / P85).
+    ETA Quantile inference engine.
+
+    Serves service-level empirical lane quantiles (LANE_QUANTILES_TABLE) with
+    provenance DERIVED and never deserializes model.joblib. Residual offsets
+    for P10, P50, and P85 are derived from the DataCo distribution and mapped
+    by transport mode.
     """
 
     def __init__(self) -> None:

@@ -1,7 +1,11 @@
-import { describe, it, expect } from 'vitest'
-import { buildSSEUrl, parsePositionPayload } from './useSSEPositions'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { buildSSEUrl, fetchStreamTicket, parsePositionPayload } from './useSSEPositions'
 
 describe('useSSEPositions helper functions', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
   describe('buildSSEUrl', () => {
     it('constructs correct SSE endpoint URL without token', () => {
       const url = buildSSEUrl('http://localhost:8000')
@@ -14,24 +18,59 @@ describe('useSSEPositions helper functions', () => {
     })
 
     it('appends ticket query param when ticket is provided', () => {
-      const url = buildSSEUrl('http://localhost:8000', 'jwt-token-123')
-      expect(url).toBe('http://localhost:8000/api/map/positions/stream?ticket=jwt-token-123')
+      const url = buildSSEUrl('http://localhost:8000', 'stream-ticket-abc')
+      expect(url).toBe('http://localhost:8000/api/map/positions/stream?ticket=stream-ticket-abc')
     })
 
     it('path-prefix apiUrl builds a same-origin proxied URL (reverse-proxy deployments)', () => {
-      // node env: stub the browser global the hook reads
       ;(globalThis as Record<string, unknown>).window = {
         location: { origin: 'https://preview.example.app' },
       }
       try {
-        const url = buildSSEUrl('/api/nexa', 'jwt-token-123')
-        // rewrite: /api/nexa/map/positions/stream -> backend /api/map/positions/stream
+        const url = buildSSEUrl('/api/nexa', 'ticket-xyz')
         expect(url).toBe(
-          'https://preview.example.app/api/nexa/map/positions/stream?ticket=jwt-token-123'
+          'https://preview.example.app/api/nexa/map/positions/stream?ticket=ticket-xyz'
         )
       } finally {
         delete (globalThis as Record<string, unknown>).window
       }
+    })
+  })
+
+  describe('fetchStreamTicket', () => {
+    it('POSTs /api/map/positions/stream-ticket with Bearer token and returns ticket', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ ticket: 'mock-ticket-999', expires_in: 60 }),
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      const ticket = await fetchStreamTicket('http://localhost:8000', 'user-jwt-token')
+
+      expect(ticket).toBe('mock-ticket-999')
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:8000/api/map/positions/stream-ticket',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer user-jwt-token',
+          },
+        }
+      )
+    })
+
+    it('throws error when server returns non-ok status', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      await expect(
+        fetchStreamTicket('http://localhost:8000', 'bad-token')
+      ).rejects.toThrow('Failed to obtain stream ticket: HTTP 401')
     })
   })
 

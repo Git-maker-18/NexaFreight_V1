@@ -1,7 +1,8 @@
 """Seed initial user accounts for development and testing.
 
-Creates one or more user accounts with known credentials for local
-development use. Safe to run multiple times (idempotent).
+Creates one or more user accounts for local development use.
+Reads SEED_PASSWORD from environment, or generates a secure random password and prints it.
+Safe to run multiple times (idempotent).
 
 Usage:
     python scripts/seed_user.py
@@ -11,6 +12,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import secrets
 import sys
 from pathlib import Path
 
@@ -37,24 +40,22 @@ async def seed_users(session: AsyncSession) -> None:
         session: Database session
     """
     settings = get_settings()
+    seed_pwd = os.environ.get("SEED_PASSWORD") or secrets.token_urlsafe(16)
 
-    # Define seed users (clearly labeled as development credentials)
+    # Define seed users
     seed_user_list = [
         {
             "email": "admin@nexafreight.local",
-            "password": "admin123",  # DEV ONLY - change for production use
             "full_name": "System Administrator",
             "role": UserRole.ADMIN,
         },
         {
             "email": "operator@nexafreight.local",
-            "password": "operator123",  # DEV ONLY - change for production use
             "full_name": "Operations Manager",
             "role": UserRole.OPERATOR,
         },
         {
             "email": "viewer@nexafreight.local",
-            "password": "viewer123",  # DEV ONLY - change for production use
             "full_name": "Dashboard Viewer",
             "role": UserRole.VIEWER,
         },
@@ -70,7 +71,7 @@ async def seed_users(session: AsyncSession) -> None:
             continue
 
         # Create new user
-        hashed_password = hash_password(user_data["password"], settings)
+        hashed_password = hash_password(seed_pwd, settings)
 
         new_user = User(
             email=user_data["email"],
@@ -83,9 +84,9 @@ async def seed_users(session: AsyncSession) -> None:
         session.add(new_user)
         await session.flush()
 
-        logger.info(
-            f"Created user: {user_data['email']} "
-            f"(role={user_data['role']}, password={user_data['password']})"
+        print(
+            f"Seeded user: {user_data['email']} "
+            f"(role={user_data['role'].value}, password={seed_pwd})"
         )
 
     await session.commit()
@@ -101,23 +102,18 @@ async def async_main() -> int:
     settings = get_settings()
     configure_logging(settings)
 
-    logger.info("Starting user seeding script")
-
-    try:
-        session_factory = get_session_factory()
-        async with session_factory() as session:
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        try:
             await seed_users(session)
-
-        logger.info("Seed script completed successfully")
-        return 0
-
-    except Exception as e:
-        logger.error(f"Seed script failed: {e}", exc_info=True)
-        return 1
+            return 0
+        except Exception as e:
+            logger.error(f"User seeding failed: {e}")
+            return 1
 
 
 def main() -> int:
-    """Synchronous entry point (calls async_main).
+    """Synchronous entry point.
 
     Returns:
         Exit code

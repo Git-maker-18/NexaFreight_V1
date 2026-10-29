@@ -37,7 +37,7 @@ This document catalogs known issues, verified performance boundaries, and delibe
 
 ### INFRA-02: Background Scheduler Concurrency
 - **Description**: APScheduler in-process background triggers could conflict with scheduled GitHub Actions cron workflows if both execute identical sync tasks simultaneously.
-- **Remediation**: Production instances disable in-process scheduler tasks via `ENABLE_BACKGROUND_SCHEDULER=false` and rely on authenticated HMAC endpoints (`/internal/nightly`) triggered by `.github/workflows/nightly.yml`.
+- **Remediation**: Production instances disable in-process scheduler tasks via `ENABLE_SCHEDULER=false` (also supporting legacy `ENABLE_BACKGROUND_SCHEDULER=false`) and rely on authenticated HMAC endpoints (`/internal/nightly`) triggered by `.github/workflows/nightly.yml`.
 
 ---
 

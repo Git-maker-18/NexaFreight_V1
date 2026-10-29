@@ -230,7 +230,11 @@ async def answer_shipment_question(
         # Prefer Gemini; fall through to Ollama if unavailable.
         adapter = gemini if gemini.available else ollama
 
+    # Sanitize inputs to prevent script injection / XSS
+    sanitized_question = re.sub(r"<\s*script[^>]*>.*?<\s*/\s*script\s*>", "", question, flags=re.IGNORECASE | re.DOTALL).strip()
+
     prompt = (
+        "[SYSTEM INSTRUCTION]\n"
         "You are the NexaFreight AI Copilot. You must provide highly professional, descriptive, "
         "and analytical answers to the operator's questions.\n\n"
         "FORMATTING RULES:\n"
@@ -238,15 +242,18 @@ async def answer_shipment_question(
         "2. When calculating or analyzing, use descriptive formats like 'Calculation matrix:' or Markdown tables.\n"
         "3. Incorporate the SYSTEM COMPUTED FACTS below into your response exactly as provided when relevant.\n\n"
         "STYLE DIRECTIVE:\n"
-        "Answer in short paragraphs. Use Markdown bolding for section labels. When numbers appear, cite them from SYSTEM COMPUTED FACTS or SHIPMENT DATA verbatim - never invent or estimate figures.\n\n"
-        f"SYSTEM COMPUTED FACTS:\n- Delivery Status: {base_eta_status}\n- Demurrage: {base_demurrage}\n\n"
-        f"SHIPMENT DATA (JSON):\n{context}\n\n"
-        f"QUESTION: {question}\n"
+        "Answer in short paragraphs. Use Markdown bolding for section labels. When numbers appear, cite them from SYSTEM COMPUTED FACTS or SHIPMENT DATA verbatim - never invent or estimate figures.\n"
+        "[END SYSTEM INSTRUCTION]\n\n"
+        f"[SYSTEM COMPUTED FACTS]\n- Delivery Status: {base_eta_status}\n- Demurrage: {base_demurrage}\n[END SYSTEM COMPUTED FACTS]\n\n"
+        f"[SHIPMENT DATA]\n{context}\n[END SHIPMENT DATA]\n\n"
+        f"[USER QUESTION]\n{sanitized_question}\n[END USER QUESTION]\n"
     )
 
     if getattr(adapter, "available", False):
-        answer = await adapter.complete(prompt)
-        if answer:
+        raw_answer = await adapter.complete(prompt)
+        if raw_answer:
+            # Sanitize LLM response against script injection
+            answer = re.sub(r"<\s*script[^>]*>.*?<\s*/\s*script\s*>", "", raw_answer, flags=re.IGNORECASE | re.DOTALL).strip()
             source = "llm"
             _record_llm_audit(
                 session,

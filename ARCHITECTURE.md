@@ -34,13 +34,15 @@ flowchart TD
   - Production builds never issue requests to `localhost` or `127.0.0.1`.
   - Bearer tokens are never attached to cross-origin or loopback requests.
 
-### ADR-02: Short-Lived SSE Stream Tickets (SEC-03)
+### ADR-02: Short-Lived Single-Use SSE Stream Tickets (SEC-03)
 - **Problem**: Standard browser `EventSource` cannot send custom `Authorization: Bearer` headers. Passing long-lived session JWTs in query parameters (`?token=...`) leaks tokens in access logs, proxy caches, and browser history.
 - **Solution**:
-  1. Frontend calls `POST /api/map/positions/stream-ticket` with its Authorization header.
-  2. Backend issues an HMAC-signed single-use ticket valid for 60 seconds with claim `scope: "stream_positions"`.
-  3. Frontend opens `EventSource('/api/map/positions/stream?ticket=<ticket>')`.
-  4. Query param `?token=` is deprecated and rejected backend-wide.
+  1. Frontend calls `POST /api/map/positions/stream-ticket` with its Authorization header before every connect and reconnect.
+  2. Backend issues an HMAC-signed single-use ticket valid for 60 seconds with claim `scope: "stream_positions"` and unique `jti`.
+  3. Frontend opens `EventSource('/api/map/positions/stream?ticket=<ticket>')`. The URL carries only the single-use ticket, never the user JWT.
+  4. Backend verifies and immediately consumes the ticket `jti` in a TTL cache, enforcing single-use and preventing replay attacks.
+  5. Access tokens are rejected as stream tickets, and stream tickets are rejected as access tokens. Stream lifetime is capped at 1800s, triggering an automatic client refetch and reconnect.
+  6. Query param `?token=` is deprecated and rejected backend-wide.
 
 ### ADR-03: Append-Only Immutable Audit Log (SEC-09)
 - **Problem**: Compliance and security require that operational decisions, operator approvals, and LLM reasoning traces cannot be tampered with or purged.
@@ -60,7 +62,7 @@ flowchart TD
 - **Problem**: Divergent emission factors across modules caused mathematical discrepancies between leg-level emissions and Network KPI aggregations.
 - **Solution**:
   - Unified default emission factors derived from GLEC Framework v3.2:
-    - **AIR**: 602.0 g CO2e / tonne-km (long-haul belly freight)
+    - **AIR**: 602.0 g CO2e / tonne-km (air freight, global average (GLEC v3.2 Table 19 / default cargo aircraft))
     - **ROAD**: 62.0 g CO2e / tonne-km (heavy articulated truck)
     - **RAIL**: 22.0 g CO2e / tonne-km (continental diesel/electric mix)
     - **SEA**: 16.1 g CO2e / tonne-km (container vessel 8,000–14,999 TEU)

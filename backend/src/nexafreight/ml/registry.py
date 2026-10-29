@@ -169,6 +169,11 @@ class ModelRegistry:
     # ------------------------------------------------------------------
     # Public accessors
     # ------------------------------------------------------------------
+    @property
+    def is_loaded(self) -> bool:
+        """Return True if all ML models are successfully loaded and ready."""
+        return self._is_loaded
+
     def get_delay_model(self) -> Any:
         """Return the delay classifier booster (LightGBM Booster).
 

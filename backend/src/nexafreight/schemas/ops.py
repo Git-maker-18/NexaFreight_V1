@@ -244,7 +244,7 @@ class AnalyticsEsgResponse(BaseModel):
 
 class CopilotAskRequest(BaseModel):
     shipment_id: str | None = None
-    question: str = Field(min_length=1, max_length=1000)
+    question: str = Field(min_length=1, max_length=500, description="Question capped at 500 characters")
 
 
 class CopilotAskResponse(BaseModel):

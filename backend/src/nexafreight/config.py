@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "test", "production"]
@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     use_live_ais: bool = Field(
         default=True,
         description="Use live AIS (AISStreamAdapter) vs replay (ReplayFeedAdapter)",
+    )
+    enable_scheduler: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("enable_scheduler", "enable_background_scheduler"),
+        description="Master toggle for background scheduler (APScheduler)",
     )
     enable_disruption_detector: bool = Field(
         default=True,

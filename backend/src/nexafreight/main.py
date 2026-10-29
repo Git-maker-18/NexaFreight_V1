@@ -79,7 +79,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         engine = get_engine() if (settings == get_settings()) else create_engine(settings)
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
-        logger.info(f"Database connectivity verified: {settings.database_url}")
+        from sqlalchemy.engine import make_url
+
+        parsed_db = make_url(settings.database_url)
+        db_dialect = (
+            parsed_db.get_dialect().name
+            if hasattr(parsed_db, "get_dialect")
+            else parsed_db.drivername.split("+")[0]
+        )
+        db_host = parsed_db.host or "local"
+        logger.info("Database connectivity verified: dialect=%s, host=%s", db_dialect, db_host)
     except Exception as e:
         logger.error(f"Database connectivity check failed: {e}")
         raise RuntimeError(f"Cannot connect to database: {e}") from e
@@ -136,7 +145,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Definitive Plan Phase 8: disruption detector + SLA monitor workers.
     # Started only when their feature flags are enabled; halted on shutdown.
     app.state.operational_scheduler = None
-    if settings.enable_disruption_detector or settings.enable_sla_checker:
+    if settings.enable_scheduler and (settings.enable_disruption_detector or settings.enable_sla_checker):
         try:
             from apscheduler.schedulers.asyncio import AsyncIOScheduler
 

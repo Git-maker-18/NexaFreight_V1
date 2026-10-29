@@ -1,7 +1,4 @@
-"""JWT authentication and password hashing for NexaFreight Control Tower."""
-
-from __future__ import annotations
-
+import uuid
 from typing import Any
 import logging
 from datetime import UTC, datetime, timedelta
@@ -13,6 +10,27 @@ from pydantic import BaseModel
 from nexafreight.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
+
+_CONSUMED_STREAM_JTIS: dict[str, float] = {}
+
+
+def consume_stream_ticket_jti(jti: str, exp: float) -> bool:
+    """Consume a ticket JTI in an in-memory TTL cache.
+    Returns True if successfully consumed, False if already consumed or expired.
+    """
+    now_ts = datetime.now(UTC).timestamp()
+    expired = [k for k, v in _CONSUMED_STREAM_JTIS.items() if v < now_ts]
+    for k in expired:
+        _CONSUMED_STREAM_JTIS.pop(k, None)
+    if jti in _CONSUMED_STREAM_JTIS:
+        return False
+    _CONSUMED_STREAM_JTIS[jti] = exp
+    return True
+
+
+def reset_stream_ticket_jtis() -> None:
+    """Clear consumed JTIs cache (used for test teardown)."""
+    _CONSUMED_STREAM_JTIS.clear()
 
 
 class TokenPayload(BaseModel):
@@ -134,6 +152,8 @@ def decode_access_token(token: str, settings: Settings | None = None) -> TokenPa
         raise
 
     # Validate required claims
+    if payload.get("scope") == "stream_positions":
+        raise ValueError("Stream tickets cannot be used as access tokens")
     if "sub" not in payload:
         raise ValueError("Token missing 'sub' claim")
     if "role" not in payload:
@@ -142,6 +162,7 @@ def decode_access_token(token: str, settings: Settings | None = None) -> TokenPa
         raise ValueError("Token missing 'exp' claim")
 
     return TokenPayload(**payload)
+
 
 def create_stream_ticket(
     user_id: int | str,
@@ -159,6 +180,7 @@ def create_stream_ticket(
         "scope": "stream_positions",
         "iat": int(now.timestamp()),
         "exp": int(expires.timestamp()),
+        "jti": str(uuid.uuid4()),
     }
     return jwt.encode(
         payload,
@@ -171,11 +193,11 @@ def decode_stream_ticket(
     ticket: str,
     settings: Settings | None = None,
 ) -> dict[str, Any]:
-    """Decode and verify an SSE stream ticket.
+    """Decode, verify, and consume a single-use SSE stream ticket.
 
     Raises:
         JWTError: If ticket is invalid, expired, or malformed
-        ValueError: If ticket missing required claims or scope is not stream_positions
+        ValueError: If ticket missing required claims, scope is not stream_positions, or ticket already used
     """
     if settings is None:
         settings = get_settings()
@@ -186,5 +208,10 @@ def decode_stream_ticket(
     )
     if payload.get("scope") != "stream_positions":
         raise ValueError("Invalid ticket scope")
+    jti = payload.get("jti")
+    exp = payload.get("exp")
+    if not jti or exp is None:
+        raise ValueError("Stream ticket missing jti or exp claim")
+    if not consume_stream_ticket_jti(jti, float(exp)):
+        raise ValueError("Stream ticket has already been used")
     return payload
-

@@ -13,7 +13,7 @@ from sqlalchemy import select
 from nexafreight.database import get_db_session
 from nexafreight.dependencies import get_current_user
 from nexafreight.enums import ShipmentStatus
-from nexafreight.exceptions import ResourceNotFoundError
+from nexafreight.exceptions import ResourceNotFoundError, ValidationError
 from nexafreight.models import Shipment, User
 from nexafreight.schemas.ops import CopilotAskRequest, CopilotAskResponse
 from nexafreight.services.copilot import answer_shipment_question
@@ -56,6 +56,8 @@ async def ask(
     current_user: User = Depends(get_current_user),
 ) -> CopilotAskResponse:
     """Ask the copilot a question about a shipment or active network state."""
+    if len(body.question) > 500:
+        raise ValidationError("Question exceeds maximum allowed length of 500 characters")
     check_copilot_rate_limit(str(current_user.id))
     shipment: Shipment | None = None
     if body.shipment_id and body.shipment_id.strip():

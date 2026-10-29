@@ -11,7 +11,7 @@
  *   const user = await nexaClient.getCurrentUser()
  *   const ships = await nexaClient.getShipments()
  *
- * Token storage: held in module-level memory only.
+ * Token storage: held in module-level memory with sessionStorage fallback.
  * It is never written to localStorage or cookies from this module.
  * Call setToken() after a successful login; call clearToken() on logout.
  *
@@ -73,14 +73,13 @@ export function resolveApiUrl(path: string): string {
 let _token: string | null = null
 
 export function setToken(token: string): void {
-  // Module var FIRST — it is the primary credential store; browser storage is
+  // Module var FIRST — it is the primary credential store; browser session storage is
   // a reload convenience. Sandboxed preview iframes (opaque origin) throw on
   // storage PROPERTY access, so every touch lives inside the try.
   _token = token
   try {
     if (typeof window !== 'undefined') {
       window.sessionStorage?.setItem('nexafreight_token', token)
-      window.localStorage?.setItem('nexafreight_token', token)
     }
   } catch {}
 }
@@ -90,7 +89,6 @@ export function clearToken(): void {
   try {
     if (typeof window !== 'undefined') {
       window.sessionStorage?.removeItem('nexafreight_token')
-      window.localStorage?.removeItem('nexafreight_token')
     }
   } catch {}
 }
@@ -98,7 +96,7 @@ export function clearToken(): void {
 export function getToken(): string | null {
   if (!_token && typeof window !== 'undefined' && window.sessionStorage) {
     try {
-      _token = window.sessionStorage.getItem('nexafreight_token') || window.localStorage.getItem('nexafreight_token') || null
+      _token = window.sessionStorage.getItem('nexafreight_token') || null
     } catch {}
   }
   return _token
