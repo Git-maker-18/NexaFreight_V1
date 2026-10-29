@@ -49,7 +49,12 @@ bundle_files = [
     "frontend/src/lib/nexafreight/client.ts",
     "backend/eval/LEAKAGE_AND_QUANTILE_AUDIT.md",
     "backend/eval/AUDIT2.md",
+    "backend/eval/FINAL_METRICS.md",
+    "ARCHITECTURE.md",
+    "KNOWN_ISSUES.md",
+    "RUNBOOK.md",
     "README.md",
+    "backend/scripts/verify_phase8_production.py",
     "backend/scripts/derive_lane_quantiles.py",
     "backend/tests/unit/test_eta_serves_lane_quantiles.py",
 ]
