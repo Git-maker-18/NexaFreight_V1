@@ -48,6 +48,7 @@ bundle_files = [
     "frontend/src/hooks/useSSEPositions.ts",
     "frontend/src/lib/nexafreight/client.ts",
     "backend/eval/LEAKAGE_AND_QUANTILE_AUDIT.md",
+    "backend/eval/AUDIT2.md",
     "README.md",
     "backend/scripts/derive_lane_quantiles.py",
     "backend/tests/unit/test_eta_serves_lane_quantiles.py",
