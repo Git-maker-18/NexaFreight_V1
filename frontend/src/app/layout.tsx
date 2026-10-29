@@ -5,6 +5,7 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import { AuthProvider } from '@/store/useAuthStore';
 import TacticalNavRail from '@/components/TacticalNavRail';
 import CopilotQuickDock from '@/components/CopilotQuickDock';
+import BackendColdStartBanner from '@/components/BackendColdStartBanner';
 import "./globals.css";
 
 const archivo = Archivo({
@@ -205,6 +206,7 @@ export default function RootLayout({
             <TacticalNavRail />
             {children}
             <CopilotQuickDock />
+            <BackendColdStartBanner />
           </AuthProvider>
         </ErrorBoundary>
       </div>

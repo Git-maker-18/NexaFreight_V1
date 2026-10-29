@@ -63,10 +63,13 @@ class GeminiAdapter:
         if model is None:
             return None
         try:
-            response = await asyncio.to_thread(
-                model.generate_content,
-                prompt,
-                generation_config={"temperature": 0.1, "max_output_tokens": 512},
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    model.generate_content,
+                    prompt,
+                    generation_config={"temperature": 0.1, "max_output_tokens": 512},
+                ),
+                timeout=10.0,
             )
             return str(response.text).strip()
         except Exception as exc:  # noqa: BLE001

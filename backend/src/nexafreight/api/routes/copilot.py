@@ -50,6 +50,7 @@ def reset_copilot_rate_limits() -> None:
 
 @router.post("/ask", response_model=CopilotAskResponse)
 async def ask(
+
     body: CopilotAskRequest,
     session: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),

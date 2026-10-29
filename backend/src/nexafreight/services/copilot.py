@@ -174,6 +174,7 @@ def _rules_answer(shipment: Shipment) -> str:
 
 
 async def answer_shipment_question(
+
     session: AsyncSession,
     *,
     shipment: Shipment,
@@ -189,7 +190,7 @@ async def answer_shipment_question(
     """
     # Eager loads inside the greenlet (no lazy access outside).
     await session.refresh(shipment, ["legs", "orders", "alerts", "origin", "destination"])
-
+    
     context = load_shipment_context(shipment)
     
     # 1. Deterministic Facts

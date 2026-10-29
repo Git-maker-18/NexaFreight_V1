@@ -7,6 +7,20 @@ on:
     branches: [ main ]
 
 jobs:
+  secret-scan:
+    name: Secret & Credential Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks Secret Detection
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   backend-test:
     name: Backend Pytest & Lint
     runs-on: ubuntu-latest
@@ -145,7 +159,7 @@ jobs:
 
   docker-builds:
     name: Build Docker Images (${{ matrix.arch }})
-    needs: [backend-test, frontend-test, postgres-suite]
+    needs: [backend-test, frontend-test, postgres-suite, secret-scan]
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -236,7 +250,7 @@ jobs:
           timeout 60s bash -c 'until curl -s http://localhost:8080/healthz; do sleep 2; done'
 
           docker run -d --name smoke-frontend -p 3001:3000 \
-            -e NEXT_PUBLIC_API_URL=http://localhost:8080 \
+            -e NEXA_BACKEND_URL=http://localhost:8080 \
             ghcr.io/${{ github.repository_owner }}/nexafreight-frontend:$SHA_TAG
 
           sleep 5

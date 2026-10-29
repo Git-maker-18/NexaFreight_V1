@@ -18,14 +18,17 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
   };
 
   if (process.env.ENABLE_UMAMI === 'true') {
-    const pageView = fetch('http://umami-umami-1:3000/api/send', {
+    const umamiHost = (process.env.UMAMI_HOST || process.env.UMAMI_URL || 'http://umami-umami-1:3000').replace(/\/$/, '');
+    const umamiEndpoint = `${umamiHost}/api/send`;
+
+    const pageView = fetch(umamiEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'User-Agent': userAgent, 'x-forwarded-for': ip },
       body: JSON.stringify({ payload: basePayload, type: "event" }),
       signal: AbortSignal.timeout(1000)
     }).catch(() => {});
 
-    const ipEvent = fetch('http://umami-umami-1:3000/api/send', {
+    const ipEvent = fetch(umamiEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'User-Agent': userAgent, 'x-forwarded-for': ip },
       body: JSON.stringify({

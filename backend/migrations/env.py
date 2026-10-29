@@ -52,6 +52,10 @@ def run_migrations_offline() -> None:
     )
 
     with context.begin_transaction():
+        if connection.dialect.name == "postgresql":
+            from sqlalchemy import text
+            # Postgres advisory lock around migrations to prevent concurrent execution races
+            connection.execute(text("SELECT pg_advisory_xact_lock(982734123)"))
         context.run_migrations()
 
 

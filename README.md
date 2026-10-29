@@ -226,8 +226,11 @@ uvicorn nexafreight.main:app --host 0.0.0.0 --port 8000 --reload
 cd frontend
 
 # 2. Configure environment variables
+# In development, client requests route through same-origin Next.js rewrites at /api/nexa.
+# For production deployments (Docker / Vercel), set NEXA_BACKEND_URL (or BACKEND_URL)
+# to point to your backend origin (e.g. https://nexafreight-backend.onrender.com).
+# Stale NEXT_PUBLIC_API_URL has been eliminated.
 cp .env.example .env.local
-# Verify NEXT_PUBLIC_NEXA_API_URL=http://localhost:8000
 
 # 3. Install Node dependencies
 npm ci
@@ -267,6 +270,16 @@ npx tsc --noEmit
 cd frontend
 npm run build
 ```
+
+---
+
+## 🚢 Docker & Deployment Hygiene
+
+- **Non-Root Containers**: Both `docker/Dockerfile.backend` (system user `nexafreight`, UID 1001) and `docker/Dockerfile.frontend` (system user `nextjs`, UID 1001) run unprivileged with explicit directory ownership on runtime data/model paths.
+- **Migration Concurrency Guard**: Alembic migrations acquire a PostgreSQL transaction-level advisory lock (`SELECT pg_advisory_xact_lock(982734123)`) to serialize simultaneous startup migrations across multi-container or replica rollouts.
+- **Startup Migration Flag**: Controlled via `RUN_MIGRATIONS` (defaults to `true` for local `docker-compose.yml`, explicitly set to `false` in production `render.yaml` to prevent automatic migrations on container boot).
+- **Cold-Start Indicator**: Built-in responsive UI banner (`BackendColdStartBanner`) alerts operators when a free-tier backend is waking from sleep (~50s cold start), polling until operational status is confirmed.
+- **Umami Telemetry**: Hostname configured dynamically via `UMAMI_HOST` or `UMAMI_URL` rather than hardcoded container addresses.
 
 ---
 

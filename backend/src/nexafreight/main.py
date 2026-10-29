@@ -234,6 +234,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version="0.1.0",
         description="Real-time shipment tracking and disruption management",
         lifespan=lifespan,
+        docs_url=None if settings.is_production else "/docs",
+        redoc_url=None if settings.is_production else "/redoc",
+        openapi_url=None if settings.is_production else "/openapi.json",
     )
 
     # Store settings on app state for lifespan access

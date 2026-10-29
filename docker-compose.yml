@@ -21,6 +21,7 @@ services:
       dockerfile: ../docker/Dockerfile.backend
     environment:
       DATABASE_URL: postgresql+asyncpg://nexa:nexa_password@postgres:5432/nexafreight
+      RUN_MIGRATIONS: "true"
     ports:
       - "8000:8000"
     depends_on:
