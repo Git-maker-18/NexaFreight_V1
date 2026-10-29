@@ -40,7 +40,7 @@ from httpx import AsyncClient
 
 from nexafreight.adapters.protocols import AssetPosition, AssetType, FeedHealth, Provenance
 from nexafreight.enums import LegStatus, TransportMode
-from nexafreight.routers.map import (
+from nexafreight.api.routes.map import (
     _build_ports_collection,
     _build_routes_collection,
     _cache_expired,
@@ -168,8 +168,8 @@ async def collect_sse_events(
     count = 0
 
     with (
-        patch("nexafreight.routers.map.get_position_tracker", return_value=tracker),
-        patch("nexafreight.routers.map.get_interpolated_positions", return_value=_interp),
+        patch("nexafreight.api.routes.map.get_position_tracker", return_value=tracker),
+        patch("nexafreight.api.routes.map.get_interpolated_positions", return_value=_interp),
     ):
         gen = _sse_generator(interval_s=interval_s, heartbeat_s=heartbeat_s)
         async for chunk in gen:
@@ -291,8 +291,8 @@ class TestSnapshot:
         tracker = mock_tracker([pos])
 
         with (
-            patch("nexafreight.routers.map.get_position_tracker", return_value=tracker),
-            patch("nexafreight.routers.map.get_interpolated_positions", return_value={}),
+            patch("nexafreight.api.routes.map.get_position_tracker", return_value=tracker),
+            patch("nexafreight.api.routes.map.get_interpolated_positions", return_value={}),
         ):
             resp = await client.get("/api/map/positions/snapshot", headers=auth_headers)
 
@@ -311,8 +311,8 @@ class TestSnapshot:
     ) -> None:
         tracker = mock_tracker([])
         with (
-            patch("nexafreight.routers.map.get_position_tracker", return_value=tracker),
-            patch("nexafreight.routers.map.get_interpolated_positions", return_value={}),
+            patch("nexafreight.api.routes.map.get_position_tracker", return_value=tracker),
+            patch("nexafreight.api.routes.map.get_interpolated_positions", return_value={}),
         ):
             resp = await client.get("/api/map/positions/snapshot", headers=auth_headers)
 
@@ -327,9 +327,9 @@ class TestSnapshot:
         tracker = mock_tracker([ais_pos])
 
         with (
-            patch("nexafreight.routers.map.get_position_tracker", return_value=tracker),
+            patch("nexafreight.api.routes.map.get_position_tracker", return_value=tracker),
             patch(
-                "nexafreight.routers.map.get_interpolated_positions",
+                "nexafreight.api.routes.map.get_interpolated_positions",
                 return_value={"42": truck_pos},
             ),
         ):
@@ -371,9 +371,9 @@ class TestSnapshot:
         tracker = mock_tracker([ais_pos])
 
         with (
-            patch("nexafreight.routers.map.get_position_tracker", return_value=tracker),
+            patch("nexafreight.api.routes.map.get_position_tracker", return_value=tracker),
             patch(
-                "nexafreight.routers.map.get_interpolated_positions",
+                "nexafreight.api.routes.map.get_interpolated_positions",
                 return_value={shared_id: interp_pos},
             ),
         ):
@@ -392,8 +392,8 @@ class TestSnapshot:
         tracker = mock_tracker([pos])
 
         with (
-            patch("nexafreight.routers.map.get_position_tracker", return_value=tracker),
-            patch("nexafreight.routers.map.get_interpolated_positions", return_value={}),
+            patch("nexafreight.api.routes.map.get_position_tracker", return_value=tracker),
+            patch("nexafreight.api.routes.map.get_interpolated_positions", return_value={}),
         ):
             resp = await client.get("/api/map/positions/snapshot", headers=auth_headers)
 
@@ -646,7 +646,7 @@ class TestRoutes:
     ) -> None:
         _invalidate_routes_cache()
         with patch(
-            "nexafreight.routers.map._build_routes_collection",
+            "nexafreight.api.routes.map._build_routes_collection",
             return_value=__import__(
                 "nexafreight.schemas.map", fromlist=["GeoJSONFeatureCollection"]
             ).GeoJSONFeatureCollection(features=[]),
@@ -718,7 +718,7 @@ class TestPorts:
     ) -> None:
         _invalidate_ports_cache()
         with patch(
-            "nexafreight.routers.map._build_ports_collection",
+            "nexafreight.api.routes.map._build_ports_collection",
         ) as mock_build:
             from nexafreight.schemas.map import GeoJSONFeature, GeoJSONFeatureCollection
 
@@ -752,7 +752,7 @@ class TestPorts:
         from nexafreight.schemas.map import GeoJSONFeature, GeoJSONFeatureCollection
 
         with patch(
-            "nexafreight.routers.map._build_ports_collection",
+            "nexafreight.api.routes.map._build_ports_collection",
             return_value=GeoJSONFeatureCollection(
                 features=[
                     GeoJSONFeature(
@@ -783,7 +783,7 @@ class TestPorts:
         from nexafreight.schemas.map import GeoJSONFeature, GeoJSONFeatureCollection
 
         with patch(
-            "nexafreight.routers.map._build_ports_collection",
+            "nexafreight.api.routes.map._build_ports_collection",
             return_value=GeoJSONFeatureCollection(
                 features=[
                     GeoJSONFeature(
@@ -814,7 +814,7 @@ class TestPorts:
         from nexafreight.schemas.map import GeoJSONFeatureCollection
 
         with patch(
-            "nexafreight.routers.map._build_ports_collection",
+            "nexafreight.api.routes.map._build_ports_collection",
             return_value=GeoJSONFeatureCollection(features=[]),
         ):
             resp = await client.get("/api/map/ports", headers=auth_headers)
@@ -838,12 +838,12 @@ class TestFeedHealth:
         mock_worker.is_running = False
 
         with (
-            patch("nexafreight.routers.map.get_position_tracker", return_value=tracker),
+            patch("nexafreight.api.routes.map.get_position_tracker", return_value=tracker),
             patch(
-                "nexafreight.routers.map.get_interpolator_worker",
+                "nexafreight.api.routes.map.get_interpolator_worker",
                 return_value=mock_worker,
             ),
-            patch("nexafreight.routers.map.get_interpolated_positions", return_value={}),
+            patch("nexafreight.api.routes.map.get_interpolated_positions", return_value={}),
         ):
             resp = await client.get("/api/map/feed-health", headers=auth_headers)
 
@@ -861,13 +861,13 @@ class TestFeedHealth:
         truck_pos = make_truck_position("5")
 
         with (
-            patch("nexafreight.routers.map.get_position_tracker", return_value=tracker),
+            patch("nexafreight.api.routes.map.get_position_tracker", return_value=tracker),
             patch(
-                "nexafreight.routers.map.get_interpolator_worker",
+                "nexafreight.api.routes.map.get_interpolator_worker",
                 return_value=mock_worker,
             ),
             patch(
-                "nexafreight.routers.map.get_interpolated_positions",
+                "nexafreight.api.routes.map.get_interpolated_positions",
                 return_value={"5": truck_pos},
             ),
         ):
@@ -896,12 +896,12 @@ class TestFeedHealth:
         mock_worker.is_running = False
 
         with (
-            patch("nexafreight.routers.map.get_position_tracker", return_value=tracker),
+            patch("nexafreight.api.routes.map.get_position_tracker", return_value=tracker),
             patch(
-                "nexafreight.routers.map.get_interpolator_worker",
+                "nexafreight.api.routes.map.get_interpolator_worker",
                 return_value=mock_worker,
             ),
-            patch("nexafreight.routers.map.get_interpolated_positions", return_value={}),
+            patch("nexafreight.api.routes.map.get_interpolated_positions", return_value={}),
         ):
             resp = await client.get("/api/map/feed-health", headers=auth_headers)
 
@@ -922,13 +922,13 @@ class TestFeedHealth:
         truck_pos = make_truck_position("42")
 
         with (
-            patch("nexafreight.routers.map.get_position_tracker", return_value=tracker),
+            patch("nexafreight.api.routes.map.get_position_tracker", return_value=tracker),
             patch(
-                "nexafreight.routers.map.get_interpolator_worker",
+                "nexafreight.api.routes.map.get_interpolator_worker",
                 return_value=mock_worker,
             ),
             patch(
-                "nexafreight.routers.map.get_interpolated_positions",
+                "nexafreight.api.routes.map.get_interpolated_positions",
                 return_value={"42": truck_pos},
             ),
         ):
@@ -948,12 +948,12 @@ class TestFeedHealth:
         mock_worker.is_running = False
 
         with (
-            patch("nexafreight.routers.map.get_position_tracker", return_value=tracker),
+            patch("nexafreight.api.routes.map.get_position_tracker", return_value=tracker),
             patch(
-                "nexafreight.routers.map.get_interpolator_worker",
+                "nexafreight.api.routes.map.get_interpolator_worker",
                 return_value=mock_worker,
             ),
-            patch("nexafreight.routers.map.get_interpolated_positions", return_value={}),
+            patch("nexafreight.api.routes.map.get_interpolated_positions", return_value={}),
         ):
             resp = await client.get("/api/map/feed-health", headers=auth_headers)
 
@@ -986,7 +986,7 @@ class TestCaching:
             return GeoJSONFeatureCollection(features=[])
 
         with patch(
-            "nexafreight.routers.map._build_routes_collection",
+            "nexafreight.api.routes.map._build_routes_collection",
             side_effect=counting_build,
         ):
             resp1 = await client.get("/api/map/routes", headers=auth_headers)
@@ -1014,7 +1014,7 @@ class TestCaching:
             return GeoJSONFeatureCollection(features=[])
 
         with patch(
-            "nexafreight.routers.map._build_routes_collection",
+            "nexafreight.api.routes.map._build_routes_collection",
             side_effect=counting_build,
         ):
             await client.get("/api/map/routes", headers=auth_headers)
@@ -1039,7 +1039,7 @@ class TestCaching:
             return GeoJSONFeatureCollection(features=[])
 
         with patch(
-            "nexafreight.routers.map._build_ports_collection",
+            "nexafreight.api.routes.map._build_ports_collection",
             side_effect=counting_build,
         ):
             await client.get("/api/map/ports", headers=auth_headers)
@@ -1060,9 +1060,9 @@ class TestGetAllPositions:
         tracker = mock_tracker([ais_pos])
 
         with (
-            patch("nexafreight.routers.map.get_position_tracker", return_value=tracker),
+            patch("nexafreight.api.routes.map.get_position_tracker", return_value=tracker),
             patch(
-                "nexafreight.routers.map.get_interpolated_positions",
+                "nexafreight.api.routes.map.get_interpolated_positions",
                 return_value={"999": truck_pos},
             ),
         ):
@@ -1077,9 +1077,9 @@ class TestGetAllPositions:
         truck_pos = make_truck_position("5")
 
         with (
-            patch("nexafreight.routers.map.get_position_tracker", return_value=tracker),
+            patch("nexafreight.api.routes.map.get_position_tracker", return_value=tracker),
             patch(
-                "nexafreight.routers.map.get_interpolated_positions",
+                "nexafreight.api.routes.map.get_interpolated_positions",
                 return_value={"5": truck_pos},
             ),
         ):
@@ -1092,8 +1092,8 @@ class TestGetAllPositions:
         tracker = mock_tracker([ais_pos])
 
         with (
-            patch("nexafreight.routers.map.get_position_tracker", return_value=tracker),
-            patch("nexafreight.routers.map.get_interpolated_positions", return_value={}),
+            patch("nexafreight.api.routes.map.get_position_tracker", return_value=tracker),
+            patch("nexafreight.api.routes.map.get_interpolated_positions", return_value={}),
         ):
             result = await _get_all_positions()
 

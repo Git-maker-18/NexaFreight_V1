@@ -1,29 +1,30 @@
-"""AI copilot endpoint (Definitive Plan — Phase 9).
-
-POST /copilot/ask — natural-language answers about a shipment; LLM errors
-degrade to rules (never a 500).
-"""
+"""Copilot natural-language endpoints (Definitive Plan — Phase 7)."""
 
 from __future__ import annotations
+
+import logging
+import time
+from collections import defaultdict
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy import select
 from nexafreight.database import get_db_session
 from nexafreight.dependencies import get_current_user
-from nexafreight.enums import ShipmentStatus
-from nexafreight.exceptions import ResourceNotFoundError, ValidationError
+from nexafreight.exceptions import (
+    RateLimitExceededError,
+    ResourceNotFoundError,
+    ValidationError,
+)
 from nexafreight.models import Shipment, User
 from nexafreight.schemas.ops import CopilotAskRequest, CopilotAskResponse
-from nexafreight.services.copilot import answer_shipment_question
+from nexafreight.services.copilot import (
+    answer_network_question,
+    answer_shipment_question,
+)
 
 router = APIRouter()
-
-
-import time
-from collections import defaultdict
-from nexafreight.exceptions import RateLimitExceededError
+logger = logging.getLogger(__name__)
 
 _COPILOT_REQUEST_TIMESTAMPS: dict[str, list[float]] = defaultdict(list)
 COPILOT_WINDOW_SECONDS = 60
@@ -50,7 +51,6 @@ def reset_copilot_rate_limits() -> None:
 
 @router.post("/ask", response_model=CopilotAskResponse)
 async def ask(
-
     body: CopilotAskRequest,
     session: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
@@ -59,36 +59,29 @@ async def ask(
     if len(body.question) > 500:
         raise ValidationError("Question exceeds maximum allowed length of 500 characters")
     check_copilot_rate_limit(str(current_user.id))
-    shipment: Shipment | None = None
+
+    # If shipment_id is provided, look it up strictly; if not found, 404 (item 10)
     if body.shipment_id and body.shipment_id.strip():
-        shipment = await session.get(Shipment, body.shipment_id.strip())
+        target_id = body.shipment_id.strip()
+        shipment = await session.get(Shipment, target_id)
+        if shipment is None:
+            raise ResourceNotFoundError("Shipment", target_id)
 
-    # Fallback: if shipment_id is absent, mock/placeholder, or not found, resolve to
-    # the most relevant active delayed or in-transit shipment in the live database.
-    if shipment is None:
-        stmt = (
-            select(Shipment)
-            .where(
-                (Shipment.status == ShipmentStatus.DELAYED)
-                | (Shipment.status == "DELAYED")
-                | (Shipment.status == ShipmentStatus.IN_TRANSIT)
-                | (Shipment.status == "IN_TRANSIT")
-            )
-            .order_by(Shipment.updated_at.desc())
-            .limit(1)
+        result = await answer_shipment_question(
+            session,
+            shipment=shipment,
+            question=body.question,
+            user=current_user,
         )
-        shipment = (await session.execute(stmt)).scalars().first()
+        return CopilotAskResponse(
+            answer=result["answer"],
+            source=result["source"],
+            provenance=result["provenance"],
+        )
 
-    if shipment is None:
-        stmt_any = select(Shipment).limit(1)
-        shipment = (await session.execute(stmt_any)).scalars().first()
-
-    if shipment is None:
-        raise ResourceNotFoundError("Shipment", body.shipment_id or "fleet")
-
-    result = await answer_shipment_question(
+    # If no shipment_id is given, answer as a network-level question (item 9)
+    result = await answer_network_question(
         session,
-        shipment=shipment,
         question=body.question,
         user=current_user,
     )

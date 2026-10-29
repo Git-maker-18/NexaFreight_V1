@@ -8,8 +8,8 @@ import urllib.request
 
 token = None
 for cred in [
-    {"email": "operator@nexafreight.local", "password": "operator123"},
-    {"email": "operator@nexafreight.dev", "password": os.environ.get("SEED_PASSWORD", "operator123")},
+    {"email": "operator@nexafreight.local", "password": os.environ.get("SEED_PASSWORD", "")},
+    {"email": "operator@nexafreight.dev", "password": os.environ.get("SEED_PASSWORD", os.environ.get("SEED_PASSWORD", ""))},
 ]:
     try:
         req = urllib.request.Request(

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { buildSSEUrl, fetchStreamTicket, parsePositionPayload } from './useSSEPositions'
+import { buildSSEUrl, fetchStreamTicket, parsePositionPayload, pruneStalePositions } from './useSSEPositions'
 
 describe('useSSEPositions helper functions', () => {
   beforeEach(() => {
@@ -156,6 +156,50 @@ describe('useSSEPositions helper functions', () => {
       expect(secondMap['vessel-1'].lat).toBe(10.5)
       expect(secondMap['vessel-1'].lon).toBe(20.6)
       expect(secondMap['vessel-1'].speed_knots).toBe(13.5)
+    })
+  
+    it('defaults missing provenance to SIMULATED, never REAL (item 14)', () => {
+      const payload = JSON.stringify([
+        {
+          asset_id: 'truck-unmarked',
+          lat: 51.5,
+          lon: -0.12,
+        },
+      ])
+      const { updatedMap } = parsePositionPayload(payload)
+      expect(updatedMap['truck-unmarked'].provenance).toBe('SIMULATED')
+    })
+  })
+
+  describe('pruneStalePositions', () => {
+    it('prunes positions older than maxAgeMinutes', () => {
+      const now = Date.now()
+      const freshTime = new Date(now - 5 * 60 * 1000).toISOString() // 5m ago
+      const staleTime = new Date(now - 20 * 60 * 1000).toISOString() // 20m ago
+
+      const positions = {
+        'asset-fresh': {
+          asset_id: 'asset-fresh',
+          asset_type: 'SEA',
+          lat: 10,
+          lon: 20,
+          provenance: 'REAL',
+          timestamp: freshTime,
+        },
+        'asset-stale': {
+          asset_id: 'asset-stale',
+          asset_type: 'ROAD',
+          lat: 30,
+          lon: 40,
+          provenance: 'SIMULATED',
+          timestamp: staleTime,
+        },
+      } as any
+
+      const { prunedMap, prunedCount } = pruneStalePositions(positions, 15, now)
+      expect(prunedCount).toBe(1)
+      expect(prunedMap['asset-fresh']).toBeDefined()
+      expect(prunedMap['asset-stale']).toBeUndefined()
     })
   })
 })

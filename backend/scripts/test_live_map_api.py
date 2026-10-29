@@ -1,3 +1,4 @@
+import os
 """Test live running map endpoints."""
 
 from __future__ import annotations
@@ -7,7 +8,7 @@ import urllib.request
 
 req = urllib.request.Request(
     "http://localhost:8000/api/auth/login",
-    data=json.dumps({"email": "admin@nexafreight.local", "password": "admin123"}).encode("utf-8"),
+    data=json.dumps({"email": "admin@nexafreight.local",  "password": os.environ.get("SEED_PASSWORD", "")}).encode("utf-8"),
     headers={"Content-Type": "application/json"},
 )
 resp = urllib.request.urlopen(req)

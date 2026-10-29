@@ -76,9 +76,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Verify database connectivity
     engine = None
     try:
-        engine = get_engine() if (settings == get_settings()) else create_engine(settings)
-        async with engine.begin() as conn:
-            await conn.execute(text("SELECT 1"))
         from sqlalchemy.engine import make_url
 
         parsed_db = make_url(settings.database_url)
@@ -88,10 +85,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             else parsed_db.drivername.split("+")[0]
         )
         db_host = parsed_db.host or "local"
+    except Exception:
+        db_dialect = "unknown"
+        db_host = "unknown"
+
+    try:
+        engine = get_engine() if (settings == get_settings()) else create_engine(settings)
+        async with engine.begin() as conn:
+            await conn.execute(text("SELECT 1"))
         logger.info("Database connectivity verified: dialect=%s, host=%s", db_dialect, db_host)
     except Exception as e:
-        logger.error(f"Database connectivity check failed: {e}")
-        raise RuntimeError(f"Cannot connect to database: {e}") from e
+        clean_err = f"dialect={db_dialect}, host={db_host}"
+        logger.error("Database connectivity check failed: %s (type=%s)", clean_err, type(e).__name__)
+        raise RuntimeError(f"Cannot connect to database: {clean_err}") from None
 
     # Refresh parameters cache using the engine selected for this app instance.
     try:
@@ -145,7 +151,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Definitive Plan Phase 8: disruption detector + SLA monitor workers.
     # Started only when their feature flags are enabled; halted on shutdown.
     app.state.operational_scheduler = None
-    if settings.enable_scheduler and (settings.enable_disruption_detector or settings.enable_sla_checker):
+    if settings.enable_background_scheduler and (settings.enable_disruption_detector or settings.enable_sla_checker):
         try:
             from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -278,8 +284,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         logger.warning(
             f"Application error: {exc.message} (status={exc.status_code}, path={request.url.path})"
         )
+        headers: dict[str, str] = {}
+        if exc.status_code == 429 and getattr(exc, "retry_after", None):
+            headers["Retry-After"] = str(exc.retry_after)
         return JSONResponse(
             status_code=exc.status_code,
+            headers=headers if headers else None,
             content={
                 "error": exc.message,
                 "details": exc.details,

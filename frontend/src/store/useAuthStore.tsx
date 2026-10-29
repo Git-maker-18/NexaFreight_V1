@@ -90,8 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       if (typeof window !== 'undefined') {
         const storedToken =
-          sessionStorage.getItem('nexafreight_token') ||
-          localStorage.getItem('nexafreight_token')
+          sessionStorage.getItem('nexafreight_token')
         if (storedToken) {
           _singleton.token = storedToken
           setToken(storedToken)
@@ -123,7 +122,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 _singleton.user = userObj
                 setUserState(userObj)
                 sessionStorage.setItem('nexafreight_token', data.access_token)
-                localStorage.setItem('nexafreight_token', data.access_token)
                 localStorage.setItem('nexafreight_user', JSON.stringify(userObj))
                 window.dispatchEvent(
                   new CustomEvent('nexafreight:auth_success', {

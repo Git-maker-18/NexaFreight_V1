@@ -1,0 +1,10 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-8.3.3, pluggy-1.6.0
+rootdir: C:\Users\RAJ KUMAR MERUGU\Downloads\nexagithub\NexaFreight-fresh\backend
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.15.1, fugue-0.9.7, asyncio-0.24.0, cov-5.0.0
+asyncio: mode=Mode.AUTO, default_loop_scope=function
+collected 885 items
+
+=========== 880 passed, 5 xfailed, 4 warnings in 171.40s (0:02:51) ============

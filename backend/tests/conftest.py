@@ -510,3 +510,18 @@ def _fresh_graph_cache_autouse():
     yield
     planner._CACHE = old
 
+
+
+@pytest.fixture(autouse=True)
+def _clean_rate_limit_stores_for_all_tests():
+    from nexafreight.api.routes.auth import reset_auth_rate_limits
+    from nexafreight.api.routes.copilot import reset_copilot_rate_limits
+    from nexafreight.auth import reset_stream_ticket_jtis
+
+    reset_auth_rate_limits()
+    reset_copilot_rate_limits()
+    reset_stream_ticket_jtis()
+    yield
+    reset_auth_rate_limits()
+    reset_copilot_rate_limits()
+    reset_stream_ticket_jtis()

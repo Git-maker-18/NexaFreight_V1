@@ -50,3 +50,4 @@ async def test_development_enables_api_docs():
 
         r_openapi = await client.get("/openapi.json")
         assert r_openapi.status_code == 200
+

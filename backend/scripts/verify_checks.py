@@ -33,8 +33,8 @@ except urllib.error.HTTPError as e:
 # 3. Successful login
 print('\n[Check 2] Valid login with seeded credentials:')
 login_creds = [
-    {'email': 'operator@nexafreight.local', 'password': 'operator123'},
-    {'email': 'operator@nexafreight.dev', 'password': os.environ.get("SEED_PASSWORD", "operator123")},
+    {'email': 'operator@nexafreight.local', 'password': os.environ.get("SEED_PASSWORD", "")},
+    {'email': 'operator@nexafreight.dev', 'password': os.environ.get("SEED_PASSWORD", os.environ.get("SEED_PASSWORD", ""))},
 ]
 token = None
 for cred in login_creds:

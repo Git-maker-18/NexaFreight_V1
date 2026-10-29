@@ -26,6 +26,7 @@ import math
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from nexafreight.enums import (
@@ -317,7 +318,13 @@ async def execute_decision(
         approved_by=user.id,
     )
     session.add(decision)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise ConflictError(
+            f"Alert {alert_id} already has a decision; concurrent approval rejected"
+        ) from exc
 
     action = "accept_delay" if chosen.action is DecisionAction.ACCEPT_DELAY else "approve_reroute"
     session.add(

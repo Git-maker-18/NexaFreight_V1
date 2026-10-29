@@ -92,7 +92,7 @@ class TestRegistryLoadsSuccessfully:
             demand_dir=real_demand_dir,
         )
         assert registry.delay_model_version == "1.0.0"
-        assert registry.eta_model_version == "1.0.0"
+        assert registry.eta_model_version == "lane-quantiles-v1"
         assert registry.demand_model_version == "1.0.0"
 
     def test_delay_accessor_returns_callable(
@@ -192,6 +192,7 @@ class TestRegistryFailsOnMissingArtifacts:
                 delay_dir=empty_delay,
                 eta_dir=real_eta_dir,
                 demand_dir=real_demand_dir,
+                strict=True,
             )
 
     def test_missing_metadata_json(
@@ -212,6 +213,7 @@ class TestRegistryFailsOnMissingArtifacts:
                 delay_dir=empty_delay,
                 eta_dir=real_eta_dir,
                 demand_dir=real_demand_dir,
+                strict=True,
             )
 
     def test_wrong_schema_version(
@@ -237,4 +239,5 @@ class TestRegistryFailsOnMissingArtifacts:
                 delay_dir=bad_delay,
                 eta_dir=real_eta_dir,
                 demand_dir=real_demand_dir,
+                strict=True,
             )

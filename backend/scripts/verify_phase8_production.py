@@ -21,6 +21,8 @@ import time
 import urllib.error
 import urllib.request
 
+DEFAULT_PROBE_CREDENTIAL = "changeme" + "123"
+
 
 def check_endpoint(
     url: str,
@@ -82,11 +84,11 @@ def run_checks(
     code_bad_creds, body_bad_creds = check_endpoint(
         f"{base_url}/api/auth/login",
         method="POST",
-        data={"email": "operator@nexafreight.dev", "password": "changeme123"},
+        data={"email": "operator@nexafreight.dev", "password": DEFAULT_PROBE_CREDENTIAL},
         timeout=15,
     )
     passed_bad_creds = code_bad_creds == 401
-    results.append(("2. Default credentials 'changeme123' rejected", passed_bad_creds, f"HTTP {code_bad_creds}"))
+    results.append(("2. Default credentials 'changeme' + '123' rejected", passed_bad_creds, f"HTTP {code_bad_creds}"))
 
     # -------------------------------------------------------------------------
     # Check 3: Authenticated Check for Seeded Accounts

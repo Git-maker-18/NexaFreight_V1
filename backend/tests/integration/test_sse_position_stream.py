@@ -407,7 +407,7 @@ async def test_sse_position_stream_comprehensive(
     5. Zero live network calls — MockFeedAdapter only.
     6. Deterministic results.
     """
-    from nexafreight.routers.map import _sse_generator
+    from nexafreight.api.routes.map import _sse_generator
 
     logger.info("═" * 80)
     logger.info("T-034: SSE Position Stream Integration Test Starting")
@@ -528,7 +528,7 @@ async def test_sse_position_stream_determinism(
     db_session: AsyncSession,
 ) -> None:
     """Verify that the SSE stream produces deterministic position stream output."""
-    from nexafreight.routers.map import _sse_generator
+    from nexafreight.api.routes.map import _sse_generator
 
     logger.info("T-034 Determinism Test: Collecting initial positions…")
 

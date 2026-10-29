@@ -152,7 +152,7 @@ def decode_access_token(token: str, settings: Settings | None = None) -> TokenPa
         raise
 
     # Validate required claims
-    if payload.get("scope") == "stream_positions":
+    if "scope" in payload:
         raise ValueError("Stream tickets cannot be used as access tokens")
     if "sub" not in payload:
         raise ValueError("Token missing 'sub' claim")

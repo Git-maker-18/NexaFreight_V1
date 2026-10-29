@@ -146,7 +146,7 @@ export function parsePositionPayload(
           longitude: lon,
           speed_knots: rawPos.speed_knots ?? null,
           heading_deg: rawPos.heading_deg ?? null,
-          provenance: rawPos.provenance || 'REAL',
+          provenance: rawPos.provenance || 'SIMULATED',
           source: rawPos.source || 'SSE',
           timestamp:
             rawPos.timestamp ||
@@ -168,6 +168,32 @@ export function parsePositionPayload(
  * React hook that connects to NexaFreight's live position SSE stream
  * (/api/map/positions/stream) using single-use tickets and maintains an up-to-date map of moving asset positions.
  */
+
+/**
+ * Prunes positions older than maxAgeMinutes (default: 15 minutes) to prevent unbounded memory growth.
+ */
+export function pruneStalePositions(
+  positions: Record<string, PositionReport>,
+  maxAgeMinutes: number = 15,
+  nowMs: number = Date.now()
+): { prunedMap: Record<string, PositionReport>; prunedCount: number } {
+  const maxAgeMs = maxAgeMinutes * 60 * 1000
+  let prunedCount = 0
+  const result: Record<string, PositionReport> = {}
+
+  for (const [key, pos] of Object.entries(positions)) {
+    const rawTime = pos.timestamp || pos.reported_at || pos.recorded_at
+    const timeMs = rawTime ? new Date(rawTime).getTime() : 0
+    if (!Number.isNaN(timeMs) && (nowMs - timeMs > maxAgeMs)) {
+      prunedCount++
+    } else {
+      result[key] = pos
+    }
+  }
+
+  return { prunedMap: prunedCount > 0 ? result : positions, prunedCount }
+}
+
 export function useSSEPositions(
   options: UseSSEPositionsOptions = {}
 ): UseSSEPositionsReturn {
@@ -282,10 +308,18 @@ export function useSSEPositions(
 
     connect()
 
-    // Periodic memory audit log (every 60s) to verify bounded size
+    // Periodic memory audit & stale position pruning (every 60s)
     const memoryAuditInterval = setInterval(() => {
-      const activeCount = Object.keys(positionsRef.current).length
-      console.log(`[useSSEPositions] Telemetry memory audit: ${activeCount} active assets tracked (memory bounded by asset_id keying)`)
+      setPositions((prev) => {
+        const { prunedMap, prunedCount } = pruneStalePositions(prev, 15)
+        const activeCount = Object.keys(prunedMap).length
+        if (prunedCount > 0) {
+          console.log(`[useSSEPositions] Pruned ${prunedCount} stale positions (> 15m), ${activeCount} remaining`)
+          return prunedMap
+        }
+        console.log(`[useSSEPositions] Telemetry memory audit: ${activeCount} active assets tracked (memory bounded by asset_id keying)`)
+        return prev
+      })
     }, 60000)
 
     return () => {

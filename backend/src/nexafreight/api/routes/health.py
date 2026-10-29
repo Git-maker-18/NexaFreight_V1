@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +22,9 @@ class HealthResponse(BaseModel):
     database: str
     version: str
     ml_models_loaded: bool = False
+    models: dict[str, bool] = Field(
+        default_factory=lambda: {"delay": False, "eta": False, "demand": False}
+    )
 
 
 class ValidationCheck(BaseModel):
@@ -36,11 +39,7 @@ class ValidationCheck(BaseModel):
 
 
 class ValidationMatrixResponse(BaseModel):
-    """Live reference-validation matrix (Task 17): feeds the /validation page.
-
-    Same implementation as the CI gate (eval/validate.py) — one source of
-    truth, so the public page can never disagree with CI.
-    """
+    """Live reference-validation matrix (Task 17): feeds the /validation page."""
 
     generated_at: str
     all_ok: bool
@@ -69,15 +68,6 @@ async def health_check(
 
     Returns 200 if app and database are healthy, 503 if database is unreachable.
     This endpoint requires no authentication and is safe to expose for monitoring.
-
-    Args:
-        db: Database session (dependency)
-
-    Returns:
-        HealthResponse with status and database connectivity
-
-    Raises:
-        HTTPException: 503 if database is unreachable
     """
     # Check database connectivity
     try:
@@ -92,13 +82,20 @@ async def health_check(
         ) from e
 
     ml_loaded = False
+    models_dict = {"delay": False, "eta": False, "demand": False}
     reg = getattr(request.app.state, "ml_registry", None)
-    if reg is not None and getattr(reg, "is_loaded", False):
-        ml_loaded = True
+    if reg is not None:
+        models_dict = {
+            "delay": getattr(reg, "delay_loaded", False),
+            "eta": getattr(reg, "eta_loaded", False),
+            "demand": getattr(reg, "demand_loaded", False),
+        }
+        ml_loaded = getattr(reg, "is_loaded", False)
 
     return HealthResponse(
         status="healthy",
         database=database_status,
-        version="0.1.0",  # From package __version__
+        version="0.1.0",
         ml_models_loaded=ml_loaded,
+        models=models_dict,
     )

@@ -4,7 +4,7 @@ eta_model.py — ETA Quantile Regressor inference module (Phase 3, T-037).
 Public API
 ----------
 EtaPrediction          Frozen dataclass returned by predict().
-EtaQuantileModel       Load trained boosters and produce ETA predictions.
+EtaQuantileModel       Load empirical lane quantiles and produce ETA predictions.
 pinball_loss()         Quantile (tick) loss metric.
 interval_coverage()    Empirical coverage of a prediction interval.
 get_eta_model()        Convenience loader.
@@ -13,7 +13,7 @@ Design rules
 ------------
 * Raw feature vectors NEVER appear in API responses.
 * Every prediction carries provenance = "DERIVED".
-* Monotonicity P10 <= P50 <= P85 is enforced even if raw boosters cross.
+* Monotonicity P10 <= P50 <= P85 is strictly enforced.
 * Unseen categorical levels degrade to MISSING_SENTINEL, never crash.
 * BANNED_COLUMNS are checked at both load() and predict() time.
 """

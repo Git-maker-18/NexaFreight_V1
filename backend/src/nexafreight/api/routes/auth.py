@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import time
+from collections import defaultdict
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,49 +14,73 @@ from nexafreight.auth import create_access_token, verify_password
 from nexafreight.config import Settings, get_settings
 from nexafreight.database import get_db_session
 from nexafreight.dependencies import get_current_user
-from nexafreight.exceptions import AuthenticationError
+from nexafreight.exceptions import AuthenticationError, RateLimitExceededError
 from nexafreight.models.user import User
 from nexafreight.schemas.auth import LoginRequest, LoginResponse, UserOut, UserProfile
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+# Dummy bcrypt hash used for timing attack / enumeration mitigation (constant-ish time verification)
+_DUMMY_BCRYPT_HASH = "$2b$12$e80MvQkK7X.K/cQxK6Nqqu8w7E8eJgZ4k.V6fL4r7w8y9z0a1b2c3"
+
+_AUTH_IP_TIMESTAMPS: dict[str, list[float]] = defaultdict(list)
+_AUTH_EMAIL_TIMESTAMPS: dict[str, list[float]] = defaultdict(list)
+AUTH_WINDOW_SECONDS = 60
+AUTH_MAX_ATTEMPTS = 5
+
+
+def check_auth_rate_limit(key: str, storage: dict[str, list[float]], limit_type: str) -> None:
+    now = time.time()
+    cutoff = now - AUTH_WINDOW_SECONDS
+    timestamps = [t for t in storage[key] if t > cutoff]
+    if len(timestamps) >= AUTH_MAX_ATTEMPTS:
+        retry_after = max(1, int(timestamps[0] + AUTH_WINDOW_SECONDS - now))
+        raise RateLimitExceededError(
+            message=f"Rate limit exceeded: too many login attempts for this {limit_type}. Please try again later.",
+            retry_after=retry_after,
+        )
+    timestamps.append(now)
+    storage[key] = timestamps
+
+
+def reset_auth_rate_limits() -> None:
+    """Reset rate limit caches (used in testing)."""
+    _AUTH_IP_TIMESTAMPS.clear()
+    _AUTH_EMAIL_TIMESTAMPS.clear()
+
 
 @router.post("/login", response_model=LoginResponse, tags=["authentication"])
 async def login(
     credentials: LoginRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
 ) -> LoginResponse:
     """Authenticate user and issue JWT access token.
 
     Validates credentials against stored user record, ensuring:
-    - User exists
-    - Password matches stored hash
+    - Rate limits per IP and per email are enforced (429 with Retry-After)
+    - Constant-time dummy verification for unknown users to prevent enumeration
     - Account is active
 
     On success, returns JWT access token and basic profile information.
-    On failure, returns generic error that does not reveal whether email
-    exists or password was incorrect (prevents user enumeration).
-
-    Args:
-        credentials: Email and password
-        db: Database session
-        settings: Application settings
-
-    Returns:
-        LoginResponse with access token and user profile
-
-    Raises:
-        AuthenticationError: If credentials invalid or account inactive
+    On failure, returns generic error without revealing existence of email.
     """
+    client_ip = request.client.host if request.client else "unknown"
+    email_key = credentials.email.lower().strip()
+
+    check_auth_rate_limit(client_ip, _AUTH_IP_TIMESTAMPS, "IP address")
+    check_auth_rate_limit(email_key, _AUTH_EMAIL_TIMESTAMPS, "account")
+
     # Load user by email
     result = await db.execute(select(User).where(User.email == credentials.email))
     user = result.scalar_one_or_none()
 
-    # Generic error for non-existent user (avoid email enumeration)
+    # Generic error for non-existent user with dummy bcrypt check to mitigate timing attacks
     if not user:
-        logger.info(f"Login attempt for non-existent email: {credentials.email}")
+        verify_password(credentials.password, _DUMMY_BCRYPT_HASH)
+        logger.debug("Login attempt for non-existent account")
         raise AuthenticationError()
 
     # Verify password
@@ -96,4 +122,3 @@ async def get_me(
 ) -> User:
     """Return currently authenticated user profile."""
     return user
-

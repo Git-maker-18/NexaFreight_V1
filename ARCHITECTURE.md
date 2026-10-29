@@ -41,7 +41,7 @@ flowchart TD
   2. Backend issues an HMAC-signed single-use ticket valid for 60 seconds with claim `scope: "stream_positions"` and unique `jti`.
   3. Frontend opens `EventSource('/api/map/positions/stream?ticket=<ticket>')`. The URL carries only the single-use ticket, never the user JWT.
   4. Backend verifies and immediately consumes the ticket `jti` in a TTL cache, enforcing single-use and preventing replay attacks.
-  5. Access tokens are rejected as stream tickets, and stream tickets are rejected as access tokens. Stream lifetime is capped at 1800s, triggering an automatic client refetch and reconnect.
+  5. Access tokens are rejected as stream tickets, and stream tickets are rejected as access tokens. Stream lifetime is capped at 900s (~15 min), triggering an automatic client refetch and reconnect.
   6. Query param `?token=` is deprecated and rejected backend-wide.
 
 ### ADR-03: Append-Only Immutable Audit Log (SEC-09)

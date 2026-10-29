@@ -175,7 +175,7 @@ class TestEtaEndpoint:
 
     def test_model_version_present(self, client: TestClient, valid_features: dict) -> None:
         data = client.post("/predict/eta", json=valid_features).json()
-        assert data["model_version"] == "1.0.0"
+        assert data["model_version"] == "lane-quantiles-v1"
         assert data["schema_version"] == "1.0.0"
 
     def test_context_field_present(self, client: TestClient, valid_features: dict) -> None:

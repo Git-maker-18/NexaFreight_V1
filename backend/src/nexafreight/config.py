@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
@@ -12,6 +14,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 Environment = Literal["development", "test", "production"]
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
+
+logger = logging.getLogger(__name__)
 
 class Settings(BaseSettings):
     """Application configuration loaded from environment variables and .env file."""
@@ -73,10 +77,14 @@ class Settings(BaseSettings):
         default=True,
         description="Use live AIS (AISStreamAdapter) vs replay (ReplayFeedAdapter)",
     )
-    enable_scheduler: bool = Field(
+    @property
+    def enable_scheduler(self) -> bool:
+        return self.enable_background_scheduler
+
+    enable_background_scheduler: bool = Field(
         default=True,
-        validation_alias=AliasChoices("enable_scheduler", "enable_background_scheduler"),
-        description="Master toggle for background scheduler (APScheduler)",
+        validation_alias=AliasChoices("enable_background_scheduler", "enable_scheduler"),
+        description="Master toggle for background workers (scheduler, AIS listener, interpolator)",
     )
     enable_disruption_detector: bool = Field(
         default=True,
@@ -109,6 +117,15 @@ class Settings(BaseSettings):
     # Ollama (local, no key)
     ollama_base_url: str = Field(default="http://localhost:11434")
     ollama_model: str = Field(default="llama2")
+
+    def model_post_init(self, __context: Any) -> None:
+        super().model_post_init(__context)
+        db_url = self.database_url
+        if ("postgres" in db_url.lower() or "postgresql" in db_url.lower()) and self.environment != "production":
+            logger.warning(
+                "PostgreSQL database configured in non-production environment (environment=%s). Ensure test credentials and isolation.",
+                self.environment,
+            )
 
     # --- Computed Properties ---
     @property

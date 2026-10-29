@@ -154,7 +154,7 @@ export async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promis
       // Sandboxed preview iframes (opaque origin) throw on storage PROPERTY
       // access — keep every touch inside the try so degradation is graceful.
       try {
-        _token = window.sessionStorage?.getItem('nexafreight_token') || window.localStorage?.getItem('nexafreight_token') || null
+        _token = window.sessionStorage?.getItem('nexafreight_token') || null
       } catch {}
     }
     if (!_token) {

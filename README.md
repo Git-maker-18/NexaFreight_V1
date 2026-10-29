@@ -204,6 +204,8 @@ cp .env.example .env
 alembic upgrade head
 
 # 6. Seed operational data & fleet orchestrator
+# Optionally export SEED_PASSWORD (or omit to let the script generate a secure random password)
+export SEED_PASSWORD="change-me-to-a-secure-password"
 python scripts/seed_user.py
 python scripts/06_seed_analytics.py
 python scripts/activate_and_seed_positions.py
