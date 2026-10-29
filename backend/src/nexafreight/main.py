@@ -90,7 +90,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         db_host = "unknown"
 
     try:
-        engine = get_engine() if (settings == get_settings()) else create_engine(settings)
+        engine = getattr(app.state, "engine", None) or get_engine() if (settings == get_settings()) else create_engine(settings)
+        app.state.engine = engine
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
         logger.info("Database connectivity verified: dialect=%s, host=%s", db_dialect, db_host)
@@ -358,7 +359,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         import asyncio
         from nexafreight.database import get_engine
         try:
-            engine = get_engine()
+            engine = getattr(app.state, "engine", None) or get_engine()
             async with asyncio.timeout(2.0):
                 async with engine.connect() as conn:
                     await conn.execute(text("SELECT 1"))

@@ -25,6 +25,7 @@ async def test_all_phase8_checks_in_production(test_engine):
         jwt_secret=SecretStr("super-secret-key-at-least-32-chars-long!"),
     )
     app = create_app(settings)
+    app.state.engine = test_engine
     app.state.ml_registry = ModelRegistry()
 
     session_factory = create_session_factory(test_engine)
@@ -36,7 +37,7 @@ async def test_all_phase8_checks_in_production(test_engine):
     app.dependency_overrides[get_db_session] = override_get_db_session
 
     transport = ASGITransport(app=app)
-    with patch("nexafreight.database.get_engine", return_value=test_engine):
+    with patch("nexafreight.main.get_engine", return_value=test_engine), patch("nexafreight.database.get_engine", return_value=test_engine):
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             # 1. Probes
             r_readyz = await client.get("/readyz")

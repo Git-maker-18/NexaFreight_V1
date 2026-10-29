@@ -21,7 +21,7 @@ COPY src ./src
 COPY models ./models
 COPY migrations ./migrations
 COPY alembic.ini .
-COPY docker/entrypoint.backend.sh /app/entrypoint.sh
+COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # Create runtime directories for data, models, logs and ensure nexafreight ownership
