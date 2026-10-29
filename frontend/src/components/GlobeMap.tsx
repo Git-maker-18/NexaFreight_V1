@@ -976,10 +976,6 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
       minZoom: 1.5,
       maxZoom: 18,
       renderWorldCopies: false, // Restrict to exactly one world map length (no infinite horizontal wrap)
-      maxBounds: [
-        [-180, -85], // Southwest coordinates
-        [180, 85],   // Northeast coordinates
-      ] as [[number, number], [number, number]],
       attributionControl: false as const,
       maxPitch: 60,
       fadeDuration: 0, // Instant tile rendering for crisp 60fps interaction
@@ -1022,7 +1018,11 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
       mapRef.current = map;
       map.resize();
       map.setRenderWorldCopies(false);
-      map.setMaxBounds([[-180, -85], [180, 85]]);
+      try {
+        map.setMaxBounds([[-180, -85], [180, 85]]);
+      } catch (err) {
+        console.warn('[NexaFreight] Could not set maxBounds:', err);
+      }
       map.setMinZoom(1.5);
       
       // Theme colors
@@ -3013,6 +3013,7 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
         innerEl.style.justifyContent = 'center';
         innerEl.style.transform = `rotate(${alignedHeading}deg)`;
         innerEl.style.transition = 'transform 4s linear';
+        innerEl.style.filter = 'drop-shadow(0 2px 5px rgba(0,0,0,0.22))';
         innerEl.innerHTML = getAssetMarkerSvg(normType, 0, pos.speed_knots);
         el.appendChild(innerEl);
 
