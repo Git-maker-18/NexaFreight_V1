@@ -16,7 +16,7 @@ async def test_main_lifespan_does_not_log_database_credentials(capsys, caplog):
     test_settings = Settings(
         database_url_override=secret_url,
         environment="test",
-        jwt_secret="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        jwt_secret="test-secret-key-for-unit-tests-only-min-32-chars",
         use_live_ais=False,
         enable_ais_listener=False,
         enable_position_interpolator=False,
@@ -63,7 +63,7 @@ async def test_main_lifespan_failure_does_not_leak_credentials(capsys, caplog):
     test_settings = Settings(
         database_url_override=secret_url,
         environment="test",
-        jwt_secret="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        jwt_secret="test-secret-key-for-unit-tests-only-min-32-chars",
         use_live_ais=False,
         enable_ais_listener=False,
         enable_position_interpolator=False,

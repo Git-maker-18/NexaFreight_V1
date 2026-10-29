@@ -5,6 +5,7 @@ from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
 
 from nexafreight.config import Settings
+from nexafreight.database import create_session_factory, get_db_session
 from nexafreight.main import create_app
 from nexafreight.ml.registry import ModelRegistry
 
@@ -24,6 +25,14 @@ async def test_all_phase8_checks_in_production(test_engine):
     )
     app = create_app(settings)
     app.state.ml_registry = ModelRegistry()
+
+    session_factory = create_session_factory(test_engine)
+
+    async def override_get_db_session():
+        async with session_factory() as session:
+            yield session
+
+    app.dependency_overrides[get_db_session] = override_get_db_session
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

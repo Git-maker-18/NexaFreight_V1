@@ -55,11 +55,13 @@ def upgrade() -> None:
             f"""
             UPDATE legs
             SET co2_kg = ROUND(
-                (legs.distance_km * :factor * (
-                    SELECT COALESCE(s.container_count, 1) * 14.0
-                    FROM shipments s
-                    WHERE s.id = legs.shipment_id
-                )) / 1000.0,
+                CAST(
+                    (legs.distance_km * :factor * (
+                        SELECT COALESCE(s.container_count, 1) * 14.0
+                        FROM shipments s
+                        WHERE s.id = legs.shipment_id
+                    )) / 1000.0
+                AS NUMERIC),
                 3
             )
             WHERE legs.distance_km IS NOT NULL
