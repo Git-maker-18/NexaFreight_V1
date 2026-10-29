@@ -45,7 +45,7 @@ function ShipmentsPageContent() {
                 MULTIMODAL WAYBILLS & ROUTE MILESTONES
               </span>
             </div>
-            <ProvenanceChip provenance="REAL" size="sm" />
+            <ProvenanceChip provenance="DERIVED" size="sm" />
           </div>
 
           <div className="flex items-center gap-2 font-mono text-[10px] text-[var(--text-secondary)]">

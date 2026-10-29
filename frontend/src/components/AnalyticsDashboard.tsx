@@ -58,7 +58,7 @@ const fmtUsd = (n: number | null | undefined) =>
 const fmtPct = (n: number | null | undefined) =>
   n == null ? '—' : `${(n * 100).toFixed(1)}%`;
 
-/* ── Demand-forecast lanes (frozen Prophet corpus) ───────────────────────  */
+/* ── Demand-forecast lanes (frozen StatsForecast AutoETS corpus) ───────────────  */
 const SPARKLINE_LANES: Array<{ category: string; region: string; label: string }> = [
   { category: 'Computers', region: 'West Africa', label: 'Computers · W. Africa' },
   { category: 'Clothes', region: 'Western Europe', label: 'Clothes · W. Europe' },
@@ -881,7 +881,7 @@ export default function AnalyticsDashboard({
             {/* C: 90-Day Demand Forecast Sparklines */}
             <div>
               <SectionLabel>
-                Prophet Demand Forecast · 90-Day Horizon &nbsp;
+                StatsForecast AutoETS Demand Forecast · 90-Day Horizon &nbsp;
                 <span
                   style={{
                     display: 'inline-block',

@@ -210,4 +210,19 @@ describe('NexaFreight Client — Phase 2 endpoints', () => {
     expect(typeof nexaClient.getShipmentRoute).toBe('function')
     expect(typeof nexaClient.getFeedHealth).toBe('function')
   })
+
+  it('rejects sending Bearer tokens to localhost in production mode', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    try {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      } as Response)
+
+      await expect(getPorts()).rejects.toThrow(/Security violation|NexaNetworkError/)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
 })

@@ -1,3 +1,4 @@
+import os
 import urllib.request, urllib.error, json, time
 
 base_url = 'http://localhost:8000'
@@ -33,7 +34,7 @@ except urllib.error.HTTPError as e:
 print('\n[Check 2] Valid login with seeded credentials:')
 login_creds = [
     {'email': 'operator@nexafreight.local', 'password': 'operator123'},
-    {'email': 'operator@nexafreight.dev', 'password': 'changeme123'},
+    {'email': 'operator@nexafreight.dev', 'password': os.environ.get("SEED_PASSWORD", "operator123")},
 ]
 token = None
 for cred in login_creds:

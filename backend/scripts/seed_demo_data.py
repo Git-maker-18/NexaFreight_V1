@@ -12,6 +12,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import secrets
 import sys
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -67,7 +69,7 @@ async def seed_all(session: AsyncSession) -> None:
         ("admin@nexafreight.local", "admin123", "System Administrator", UserRole.ADMIN),
         ("operator@nexafreight.local", "operator123", "Operations Manager", UserRole.OPERATOR),
         ("viewer@nexafreight.local", "viewer123", "Dashboard Viewer", UserRole.VIEWER),
-        ("operator@nexafreight.dev", "changeme123", "Dev Operator", UserRole.OPERATOR),
+        ("operator@nexafreight.dev", os.environ.get("SEED_PASSWORD") or secrets.token_urlsafe(16), "Dev Operator", UserRole.OPERATOR),
     ]
     for email, pwd, name, role in users_to_seed:
         res = await session.execute(select(User).where(User.email == email))

@@ -1,10 +1,11 @@
+import os
 import json
 import urllib.request
 
 base = "http://127.0.0.1:8000"
 
 # 1. Login
-login_data = json.dumps({"email": "operator@nexafreight.dev", "password": "changeme123"}).encode()
+login_data = json.dumps({"email": "operator@nexafreight.dev", "password": os.environ.get("SEED_PASSWORD", "operator123")}).encode()
 req = urllib.request.Request(f"{base}/api/auth/login", data=login_data, headers={"Content-Type": "application/json"})
 with urllib.request.urlopen(req) as resp:
     token_resp = json.loads(resp.read().decode())

@@ -115,7 +115,7 @@ const tooltipStyle = {
 const tooltipLabelStyle = { color: MUTED, fontSize: 9.5, letterSpacing: '0.1em', marginBottom: 2 };
 const tooltipItemStyle = { color: INK, fontSize: 11, fontVariantNumeric: 'tabular-nums' as const };
 
-/* ── MOD-407 // DEMAND_FCST — Prophet order-intake forecast ──────────────────
+/* ── MOD-407 // DEMAND_FCST — StatsForecast AutoETS order-intake forecast ──
    Surfaces the trained demand model (models/demand_forecast/model.joblib) via
    GET /api/demand/forecast. Three real trained lanes; 30/60/90-day horizons.
    Fan chart: ink line = observed history, cobalt dashed = ŷ forecast, shaded
@@ -189,7 +189,7 @@ function DemandForecastPanel() {
 
   return (
     <ChartFrame
-      title={`DEMAND FORECAST — PROPHET ORDER INTAKE · ${lane.label}`}
+      title={`DEMAND FORECAST — STATSFORECAST AUTOETS ORDER INTAKE · ${lane.label}`}
       mod="407 // DEMAND_FCST"
       provenance={resp ? `ML · ${resp.model_version}` : 'ML'}
       style={{ minWidth: '100%' }}
@@ -235,7 +235,7 @@ function DemandForecastPanel() {
 
       {state === 'loading' && (
         <div style={{ ...mono, fontSize: 10.5, letterSpacing: '0.1em', color: GHOST, padding: '96px 0', textAlign: 'center' }}>
-          QUERYING PROPHET ARTIFACT…
+          QUERYING STATSFORECAST AUTOETS ARTIFACT…
         </div>
       )}
       {state === 'error' && (
@@ -642,7 +642,7 @@ export default function InsightsCharts() {
         )}
       </div>
 
-      {/* MOD-407 // DEMAND_FCST — Prophet order-intake forecast */}
+      {/* MOD-407 // DEMAND_FCST — StatsForecast AutoETS order-intake forecast */}
       <DemandForecastPanel />
     </div>
   );

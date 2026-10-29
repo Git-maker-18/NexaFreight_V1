@@ -1,6 +1,6 @@
 {
   "dataset": {
-    "path": "C:\\Users\\RAJ KUMAR MERUGU\\Downloads\\nexagithub\\NexaFreight-fresh\\backend\\data\\raw\\dataco\\DataCoSupplyChain.csv",
+    "path": "backend/data/raw/dataco/DataCoSupplyChain.csv",
     "sha256_first16": "fa6d022ed437155e",
     "rows_total": 180519,
     "rows_scored": 27387,

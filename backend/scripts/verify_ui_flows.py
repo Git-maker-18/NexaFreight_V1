@@ -11,7 +11,7 @@ import urllib.request
 from pathlib import Path
 import websockets
 
-SCREENSHOT_DIR = Path(r"C:\Users\RAJ KUMAR MERUGU\.gemini\antigravity-ide\brain\9f66dd52-de1b-4d62-80f9-6a2a1189294c")
+SCREENSHOT_DIR = Path(os.environ.get("SCREENSHOT_DIR", Path(__file__).resolve().parent / "screenshots"))
 CDP_PORT = 9223
 
 class ChromeController:

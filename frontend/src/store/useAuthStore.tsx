@@ -28,7 +28,7 @@ import {
   useCallback,
   type ReactNode,
 } from 'react'
-import { setToken, clearToken } from '@/lib/nexafreight/client'
+import { setToken, clearToken, login } from '@/lib/nexafreight/client'
 import type { User } from '@/lib/nexafreight/types'
 
 // ─── Store shape ──────────────────────────────────────────────────────────────
@@ -108,30 +108,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // If no token exists and not on /login, auto-login with default operator credentials
         if (!storedToken && window.location.pathname !== '/login') {
-          const apiUrl = process.env.NEXT_PUBLIC_NEXA_API_URL || 'http://localhost:8000'
-          fetch(`${apiUrl.replace(/\/$/, '')}/api/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: 'operator@nexafreight.local', password: 'operator123' }),
-          })
-            .then((r) => (r.ok ? r.json() : null))
+          login('operator@nexafreight.local', 'operator123')
             .then((data) => {
               if (data?.access_token) {
+                const userObj: User = {
+                  id: 1,
+                  email: data.user.email,
+                  role: (data.user.role as import('@/lib/nexafreight/types').UserRole) || 'OPERATOR',
+                  full_name: data.user.full_name,
+                }
                 _singleton.token = data.access_token
                 setToken(data.access_token)
                 setTokenState(data.access_token)
-                if (data.user) {
-                  _singleton.user = data.user
-                  setUserState(data.user)
-                }
+                _singleton.user = userObj
+                setUserState(userObj)
                 sessionStorage.setItem('nexafreight_token', data.access_token)
                 localStorage.setItem('nexafreight_token', data.access_token)
-                if (data.user) {
-                  localStorage.setItem('nexafreight_user', JSON.stringify(data.user))
-                }
+                localStorage.setItem('nexafreight_user', JSON.stringify(userObj))
                 window.dispatchEvent(
                   new CustomEvent('nexafreight:auth_success', {
-                    detail: { token: data.access_token, user: data.user },
+                    detail: { token: data.access_token, user: userObj },
                   })
                 )
               }

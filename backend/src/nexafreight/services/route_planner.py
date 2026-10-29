@@ -385,7 +385,7 @@ async def plan_legs_for_shipment(session: AsyncSession, shipment: Shipment) -> l
 
         try:
             geom, dist_km, co2_kg = await _get_route_between(seg_mode, seg_origin, seg_dest)
-            provenance = Provenance.REAL
+            provenance = Provenance.DERIVED
         except Exception:
             # Geodesic fallback
             geom = {

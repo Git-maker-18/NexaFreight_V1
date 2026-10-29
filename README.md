@@ -4,12 +4,11 @@
 
 ### Autonomous Multimodal Logistics & Maritime Intelligence Control Tower
 
-[![CI Pipeline](https://github.com/rajmontana/NexaFreight/actions/workflows/ci.yml/badge.svg)](https://github.com/rajmontana/NexaFreight/actions/workflows/ci.yml)
+[![CI](https://github.com/rajmontana/NexaFreight/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rajmontana/NexaFreight/actions/workflows/ci.yml)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Next.js](https://img.shields.io/badge/Next.js-16.2-black.svg?logo=next.js&logoColor=white)](https://nextjs.org)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Tests Passing](https://img.shields.io/badge/Tests-1000%2B%20Passing-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 *An enterprise-grade platform uniting real-time AIS vessel telemetry, intermodal route optimization, predictive delay machine learning, automated disruption recovery, and an AI Operations Copilot powered by Google Gemini.*
@@ -33,7 +32,7 @@ Global supply chain operations are inherently fragmented. Ocean container shippi
 │                      Next.js 16 Frontend (Port 3000)                    │
 │   • Tactical 3D Globe & Flat Mercator Canvas (MapLibre GL)              │
 │   • Operations Manifest Ledger & Deep Shipment Dossier                  │
-│   • Operational Analytics & Prophet Demand Forecasting (Recharts)       │
+│   • Operational Analytics & StatsForecast AutoETS Demand Forecasting (Recharts)       │
 │   • 3-Way Disruption Triage Desk & Audit Trail Ledger                   │
 │   • Persistent AI Copilot Quick Dock (Google Gemini + Rule Engine)      │
 │   • Real-Time Position Stream Consumer (Server-Sent Events)             │
@@ -44,7 +43,7 @@ Global supply chain operations are inherently fragmented. Ocean container shippi
 │   • Telemetry Engine: AISStream live WebSocket & Linear Interpolator    │
 │   • Multimodal Router: Sea (searoute), Highway (ORS/OSRM), Air & Rail   │
 │   • Time-Expanded Graph Planner: Yen's k-shortest paths optimization    │
-│   • Predictive ML: LightGBM delay classifier & StatsForecast Prophet    │
+│   • Predictive ML: LightGBM delay classifier & StatsForecast AutoETS    │
 │   • Disruption Engine: SLA-cushion relative severity classification     │
 │   • Financial & ESG Engine: Waterfall P&L, demurrage & GLEC CO2 kg      │
 │   • Database: SQLite (local dev) / PostgreSQL 16 (production)           │
@@ -75,7 +74,7 @@ Global supply chain operations are inherently fragmented. Ocean container shippi
 
 ### 3. Predictive Machine Learning & Forecasting
 - **Delay Classifier (LightGBM)**: Trained on historical international supply chain data with strict chronological splits and post-hoc leakage bans. **Validation AUC: 0.7315**, PR-AUC: 0.791.
-- **Demand Forecasting (Prophet / StatsForecast)**: Models forward cargo volume across **79 international trade corridors** with 80% confidence intervals. **WAPE: 32.16%** (+26.9% lift over seasonal-naive baselines).
+- **Demand Forecasting (StatsForecast AutoETS)**: Models forward cargo volume across **79 international trade corridors** with 80% confidence intervals. **WAPE: 32.16%** (+26.9% lift over seasonal-naive baselines).
 - **ETA Quantile Residual Estimator**: Quantile regression evaluating $p_{10}$, $p_{50}$, and $p_{85}$ delay margins for operational risk banding (`ON_TIME`, `MEDIUM`, `HIGH`, `BREACH`).
 
 ### 4. Operational Financials & GLEC Carbon Accounting
@@ -127,7 +126,7 @@ The frontend is organized into 5 dedicated, high-density operational surfaces:
 3. **Shipment Dossier (`/shipments/[id]`)**:
    - Deep-dive operational view featuring live time-to-destination countdowns, schedule slip counters, route mini-maps, sequential milestone leg cards, itemized P&L breakdowns, and Copilot risk verdicts.
 4. **Operational Insights (`/insights`)**:
-   - Comprehensive analytics suite with carrier SLA compliance trends, modal GLEC CO2 footprint ledgers, demurrage loss waterfalls, and the MOD-407 Prophet demand forecast curves for 79 trade lanes.
+   - Comprehensive analytics suite with carrier SLA compliance trends, modal GLEC CO2 footprint ledgers, demurrage loss waterfalls, and the MOD-407 StatsForecast AutoETS demand forecast curves for 79 trade lanes.
 5. **Disruption Queue (`/alerts`)**:
    - Incident queue classifying bottlenecks by SLA cushion impact with the **3-Way Recovery Desk** modal for executing Accept, Divert, or Modal Shift decisions.
 
@@ -139,7 +138,7 @@ The frontend is organized into 5 dedicated, high-density operational surfaces:
 .
 ├── backend/
 │   ├── migrations/             # Alembic database migration chain
-│   ├── models/                 # Pre-trained ML model artifacts (LightGBM, Prophet)
+│   ├── models/                 # Pre-trained ML model artifacts (LightGBM, StatsForecast AutoETS)
 │   ├── scripts/                # Data ingestion pipelines, seeding & fleet sync
 │   ├── src/nexafreight/        # Application source code
 │   │   ├── api/                # FastAPI routers (shipments, alerts, telemetry, copilot, etc.)
@@ -239,9 +238,11 @@ npm run dev
 
 *Open your browser at: `http://localhost:3000`*
 
-**Default Operator Credentials:**
-- **Email:** `operator@nexafreight.dev`
-- **Password:** `changeme123`
+**Operator Authentication:**
+- Seed scripts create `operator@nexafreight.dev` reading `SEED_PASSWORD` from the environment, or auto-generate a secure random password printed to console at seed time:
+  ```bash
+  SEED_PASSWORD=my_secure_password python backend/scripts/seed_demo_data.py
+  ```
 
 ---
 
@@ -285,6 +286,14 @@ npm run build
 | `POST` | `/api/v1/decisions` | Commits approved operator decision to immutable audit ledger |
 | `GET` | `/api/v1/analytics/summary` | Executive KPI scorecard, volume, revenue, and CO2 emissions |
 | `POST` | `/api/v1/copilot/chat` | Dispatches query to AI Copilot (deterministic rule / Google Gemini) |
+
+---
+
+## ⚠️ Model Limitations & Scientific Benchmarks
+
+- **Delay Risk Classifier**: Trained on the DataCo Smart Supply Chain dataset. LightGBM early stopping triggers at tree iteration 3, achieving +0.024 AUC (0.731 vs. 0.707) over simple marginal lane-rate historical baselines. We hypothesize this headroom ceiling stems from synthetic label generation in the underlying dataset rather than model underfitting.
+- **ETA Quantile Estimators ($p_{10}, p_{50}, p_{85}$)**: Formulated with provenance `DERIVED` as empirical transit-time residual quantiles across historical lanes. The LightGBM quantile regression trial (-0.23% to -1.94% pinball lift against naive empirical quantiles) is preserved in `backend/eval/` as a documented negative benchmark.
+- **Data Provenance**: Explicit distinction between live real-time signals (`REAL`), calibrated empirical benchmarks (`CALIBRATED`), mathematically reconstructed historical orders/routes (`DERIVED`), and simulation intervals (`SIMULATED`).
 
 ---
 

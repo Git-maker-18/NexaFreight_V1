@@ -11,7 +11,7 @@ import urllib.request
 from pathlib import Path
 import websockets
 
-ARTIFACT_DIR = Path(r"C:\Users\RAJ KUMAR MERUGU\.gemini\antigravity-ide\brain\9f66dd52-de1b-4d62-80f9-6a2a1189294c")
+ARTIFACT_DIR = Path(os.environ.get("ARTIFACT_DIR", Path(__file__).resolve().parent / "artifacts"))
 CDP_PORT = 9230
 
 class ChromeWalkthrough:
@@ -278,7 +278,7 @@ async def main():
     script_path = ARTIFACT_DIR / "build_animation.js"
     script_path.write_text(node_script, encoding="utf-8")
     
-    node_proc = subprocess.run(["node", str(script_path)], cwd=r"c:\Users\RAJ KUMAR MERUGU\Downloads\nexagithub\NexaFreight-fresh\frontend", capture_output=True, text=True)
+    node_proc = subprocess.run(["node", str(script_path)], cwd=str(Path(__file__).resolve().parents[2] / "frontend"), capture_output=True, text=True)
     print("Node animation builder output:", node_proc.stdout)
     if node_proc.stderr:
         print("Node animation builder err:", node_proc.stderr)

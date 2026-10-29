@@ -475,7 +475,7 @@ async def dress_legs_for_reality() -> dict:
                         geom_str = _json.dumps({"type": "LineString", "coordinates": coords})
                         source = "FALLBACK_BEND"
                     leg.route_geometry_json = geom_str
-                    leg.provenance = "REAL" if source in ("SEAROUTE", "GREAT_CIRCLE", "ORS") else "DERIVED"
+                    leg.provenance = "DERIVED"
                     sources[source] = sources.get(source, 0) + 1
                     filled += 1
                     if ors_key and mode not in ("SEA", "AIR"):

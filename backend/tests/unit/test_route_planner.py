@@ -149,10 +149,10 @@ async def test_fallback_flag_and_provenance_on_failure(
 
 
 @pytest.mark.asyncio
-async def test_primary_path_provenance_is_real(
+async def test_primary_path_provenance_is_derived(
     db_session: AsyncSession, make_location, make_shipment
 ) -> None:
-    """When primary routing succeeds, provenance is REAL."""
+    """When primary routing succeeds, provenance is DERIVED (engine-calculated over historical/reconstructed orders)."""
     origin = await make_location(locode="USNYC")
     dest = await make_location(locode="NLRTM")
     shipment = await make_shipment(
@@ -166,7 +166,7 @@ async def test_primary_path_provenance_is_real(
         legs = await plan_legs_for_shipment(db_session, shipment)
 
     assert len(legs) == 1
-    assert legs[0].provenance == Provenance.REAL
+    assert legs[0].provenance == Provenance.DERIVED
 
 
 @pytest.mark.asyncio

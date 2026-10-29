@@ -39,9 +39,32 @@ import type {
 
 // ─── Base URL ─────────────────────────────────────────────────────────────────
 
+const isBrowser = typeof window !== 'undefined'
+const isDev = process.env.NODE_ENV === 'development'
+const devDirectOptIn = isDev && process.env.NEXT_PUBLIC_USE_DIRECT_BACKEND === 'true'
+
 export const BASE_URL = (
-  process.env.NEXT_PUBLIC_NEXA_API_URL || 'http://localhost:8000'
-).replace(/\/$/, '') // strip trailing slash so paths can always start with /
+  devDirectOptIn
+    ? (process.env.NEXT_PUBLIC_NEXA_API_URL || 'http://localhost:8000')
+    : isBrowser
+      ? '/api/nexa'
+      : (process.env.NEXA_BACKEND_URL || process.env.NEXT_PUBLIC_NEXA_API_URL || 'http://127.0.0.1:8000')
+).replace(/\/$/, '') // strip trailing slash
+
+/**
+ * Resolves an API path against BASE_URL.
+ * When BASE_URL is a path prefix (e.g. '/api/nexa'), any leading '/api' in path
+ * is stripped so that '/api/shipments' becomes '/api/nexa/shipments'.
+ */
+export function resolveApiUrl(path: string): string {
+  if (BASE_URL.startsWith('/')) {
+    const subPath = path.startsWith('/api/') ? path.slice(4) : path.startsWith('/api') ? path.slice(4) : path
+    const normalizedSub = subPath.startsWith('/') ? subPath : `/${subPath}`
+    return `${BASE_URL}${normalizedSub}`
+  }
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  return `${BASE_URL}${normalizedPath}`
+}
 
 // ─── Token store ──────────────────────────────────────────────────────────────
 // Module-level variable: survives React re-renders, with browser storage fallback
@@ -100,8 +123,8 @@ interface FetchOptions {
 export async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promise<T> {
   const { method = 'GET', body, auth = 'required', params } = opts
 
-  // Build URL
-  let url = `${BASE_URL}${path}`
+  // Build URL via resolveApiUrl
+  let url = resolveApiUrl(path)
   let qs_str = ''
   if (params) {
     const qs = new URLSearchParams()
@@ -110,6 +133,16 @@ export async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promis
     }
     qs_str = qs.toString()
     if (qs_str) url += `?${qs_str}`
+  }
+
+  // Security guard: In production, never send Bearer token to localhost or loopback
+  if (process.env.NODE_ENV === 'production' && auth === 'required') {
+    const isLoopback = /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?/i.test(url)
+    if (isLoopback) {
+      throw new NexaNetworkError(
+        new Error('Security violation: Refusing to send Bearer token to localhost in production mode.')
+      )
+    }
   }
 
   // Build headers
@@ -135,7 +168,7 @@ export async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promis
     headers['Authorization'] = `Bearer ${_token}`
   }
 
-  // Execute request
+  // Execute request — direct fetch with no retry-to-fallback
   let response: Response
   try {
     response = await fetch(url, {
@@ -144,26 +177,7 @@ export async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promis
       body: body !== undefined ? JSON.stringify(body) : undefined,
     })
   } catch (err) {
-    // If direct fetch to backend port failed, retry via Next.js proxy rewrite
-    if (!url.startsWith('/api/nexa') && typeof window !== 'undefined') {
-      try {
-        const subPath = path.startsWith('/api') ? path.replace(/^\/api/, '') : path
-        let proxyUrl = `/api/nexa${subPath}${qs_str ? `?${qs_str}` : ''}`
-        // Preview tunnels (sandboxed ingress) can strip the Authorization
-        // header in transit; the backend natively accepts ?token= (the same
-        // fallback SSE uses), so credential proxy calls redundantly.
-        if (_token) proxyUrl += `${proxyUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(_token)}`
-        response = await fetch(proxyUrl, {
-          method,
-          headers,
-          body: body !== undefined ? JSON.stringify(body) : undefined,
-        })
-      } catch {
-        throw new NexaNetworkError(err)
-      }
-    } else {
-      throw new NexaNetworkError(err)
-    }
+    throw new NexaNetworkError(err)
   }
 
   // Parse error responses
@@ -385,7 +399,7 @@ export async function getEtaPrediction(
 /**
  * GET /api/demand/forecast
  *
- * Fetches precomputed Prophet demand forecast for a (category × region) lane.
+ * Fetches precomputed StatsForecast AutoETS demand forecast for a (category × region) lane.
  *
  * Returns:
  *   - DemandForecastResponse   on success (HTTP 200)

@@ -1,3 +1,4 @@
+import os
 """Test live SSE connection to /api/map/positions/stream."""
 
 from __future__ import annotations
@@ -8,7 +9,7 @@ import urllib.request
 token = None
 for cred in [
     {"email": "operator@nexafreight.local", "password": "operator123"},
-    {"email": "operator@nexafreight.dev", "password": "changeme123"},
+    {"email": "operator@nexafreight.dev", "password": os.environ.get("SEED_PASSWORD", "operator123")},
 ]:
     try:
         req = urllib.request.Request(

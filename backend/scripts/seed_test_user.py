@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import secrets
 import sys
 from pathlib import Path
 
@@ -25,15 +27,16 @@ async def main() -> None:
             print("Test user already exists.")
             return
 
+        password = os.environ.get("SEED_PASSWORD") or secrets.token_urlsafe(16)
         user = User(
             email="operator@nexafreight.dev",
-            hashed_password=hash_password("changeme123"),
+            hashed_password=hash_password(password),
             role=UserRole.OPERATOR,
             full_name="Dev Operator",
         )
         session.add(user)
         await session.commit()
-        print("Seeded operator@nexafreight.dev / changeme123")
+        print(f"Seeded operator@nexafreight.dev (password: {password})")
 
 
 if __name__ == "__main__":
