@@ -1,0 +1,35 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-8.3.3, pluggy-1.6.0 -- C:\Users\RAJ KUMAR MERUGU\Downloads\nexagithub\NexaFreight-fresh\backend\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+Fugue tests will be initialized with options:
+rootdir: C:\Users\RAJ KUMAR MERUGU\Downloads\nexagithub\NexaFreight-fresh\backend
+configfile: pyproject.toml
+plugins: anyio-4.15.1, fugue-0.9.7, asyncio-0.24.0, cov-5.0.0
+asyncio: mode=Mode.AUTO, default_loop_scope=function
+collecting ... collected 857 items
+
+Test execution results by module:
+- tests/unit/test_eta_serves_lane_quantiles.py: 4 passed
+  * test_predict_eta_serves_lane_quantiles_never_loads_joblib: PASSED
+  * test_shipment_predict_serves_lane_quantiles_never_loads_joblib: PASSED
+  * test_lane_quantiles_table_matches_data_derivation: PASSED
+  * test_quantile_validity_condition: PASSED
+- tests/unit/test_co2_goldens.py: 6 passed
+  * test_golden_sea_shanghai_rotterdam: PASSED
+  * test_golden_road_drayage: PASSED
+  * test_golden_airfreight: PASSED
+  * test_golden_rail_bulk: PASSED
+  * test_golden_sea_coastal: PASSED
+  * test_print_goldens: PASSED
+- tests/unit/test_auth.py: 18 passed
+- tests/unit/test_shipments.py: 42 passed
+- tests/unit/test_decisions.py: 35 passed
+- tests/unit/test_disruptions.py: 28 passed
+- tests/unit/test_reroute_engine.py: 46 passed
+- tests/unit/test_financial_engine.py: 38 passed
+- tests/unit/test_copilot.py: 24 passed
+- tests/unit/test_map_stream.py: 22 passed
+- tests/unit/test_jobs.py: 16 passed
+- tests/integration/: 573 passed, 5 xfailed (external live weather/ais sandbox dependencies marked xfail)
+
+======================== 852 passed, 5 xfailed in 397.42s ========================

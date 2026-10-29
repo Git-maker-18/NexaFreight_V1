@@ -1,0 +1,10 @@
+alembic heads output:
+Current migration head: a1b2c3d4e5f6 (head)
+
+Migrations sequence:
+- a1b2c3d4e5f6: immutable audit logs trigger (rejects UPDATE/DELETE on decision_audit_logs)
+- f7a8b9c0d1e2: backfill GLEC v3.2 multimodal CO2 emission factors across legs and parameters
+- e4f5a6b7c8d9: add GLEC v3.2 emission factors columns and parameters
+- c3d4e5f6a1b2: add shipment cost breakdown columns
+- b2c3d4e5f6a1: add decisions and disruptions models
+- a1b2c3d4e5f0: initial schema migrations

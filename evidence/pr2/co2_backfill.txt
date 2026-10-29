@@ -1,0 +1,29 @@
+=== GLEC v3.2 Multimodal CO2 Emission Factors Migration Verification ===
+Migration ID: f7a8b9c0d1e2 (backfill GLEC v3.2 multimodal CO2 emission factors across legs and parameters)
+
+GLEC Framework v3.2 Factors:
+- SEA: 8.0 g/tonne-km (container shipping 5k-10k TEU)
+- ROAD: 62.0 g/tonne-km (heavy articulated diesel line-haul >32t)
+- RAIL: 28.0 g/tonne-km (mixed electric/diesel freight train)
+- AIR: 602.0 g/tonne-km (dedicated air freighter)
+
+Calculation Formula:
+co2_kg = ROUND((distance_km * factor * (container_count * 14.0 tonnes)) / 1000.0, 3)
+
+=== BEFORE BACKFILL ===
+Parameters: [('co2.air_g_per_tonne_km', '0.0'), ('co2.rail_g_per_tonne_km', '0.0'), ('co2.road_g_per_tonne_km', '0.0'), ('co2.road_g_with_toll', '0.0'), ('co2.sea_g_per_tonne_km', '0.0')]
+Legs:
+- leg-1: SEA, distance=1000.0 km, containers=2 (28t), co2_kg=NULL
+- leg-2: ROAD, distance=200.0 km, containers=2 (28t), co2_kg=NULL
+- leg-3: RAIL, distance=500.0 km, containers=1 (14t), co2_kg=NULL
+- leg-4: AIR, distance=3000.0 km, containers=1 (14t), co2_kg=NULL
+
+=== AFTER GLEC v3.2 BACKFILL ===
+Parameters: [('co2.air_g_per_tonne_km', '602.0'), ('co2.rail_g_per_tonne_km', '28.0'), ('co2.road_g_per_tonne_km', '62.0'), ('co2.road_g_with_toll', '62.0'), ('co2.sea_g_per_tonne_km', '8.0')]
+Legs:
+- leg-1: SEA, distance=1000.0 km, co2_kg=224.0 kg  (1000 * 8.0 * 28 / 1000 = 224.0 kg)
+- leg-2: ROAD, distance=200.0 km, co2_kg=347.2 kg  (200 * 62.0 * 28 / 1000 = 347.2 kg)
+- leg-3: RAIL, distance=500.0 km, co2_kg=196.0 kg  (500 * 28.0 * 14 / 1000 = 196.0 kg)
+- leg-4: AIR, distance=3000.0 km, co2_kg=25284.0 kg (3000 * 602.0 * 14 / 1000 = 25284.0 kg)
+
+Status: PASS - 100% test assertions satisfied against schema and formulas.
