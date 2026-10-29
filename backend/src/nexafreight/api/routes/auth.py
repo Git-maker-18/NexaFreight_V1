@@ -27,14 +27,26 @@ _DUMMY_BCRYPT_HASH = "$2b$12$e80MvQkK7X.K/cQxK6Nqqu8w7E8eJgZ4k.V6fL4r7w8y9z0a1b2
 _AUTH_IP_TIMESTAMPS: dict[str, list[float]] = defaultdict(list)
 _AUTH_EMAIL_TIMESTAMPS: dict[str, list[float]] = defaultdict(list)
 AUTH_WINDOW_SECONDS = 60
-AUTH_MAX_ATTEMPTS = 5
+AUTH_MAX_IP_ATTEMPTS = 30
+AUTH_MAX_EMAIL_ATTEMPTS = 5
 
 
-def check_auth_rate_limit(key: str, storage: dict[str, list[float]], limit_type: str) -> None:
+def get_client_ip(request: Request) -> str:
+    """Extract client IP, inspecting X-Forwarded-For header behind reverse proxies (e.g. Render)."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        # First IP in X-Forwarded-For is the originating client
+        return forwarded.split(",")[0].strip()
+    if request.client and request.client.host:
+        return request.client.host
+    return "unknown"
+
+
+def check_auth_rate_limit(key: str, storage: dict[str, list[float]], limit_type: str, max_attempts: int) -> None:
     now = time.time()
     cutoff = now - AUTH_WINDOW_SECONDS
     timestamps = [t for t in storage[key] if t > cutoff]
-    if len(timestamps) >= AUTH_MAX_ATTEMPTS:
+    if len(timestamps) >= max_attempts:
         retry_after = max(1, int(timestamps[0] + AUTH_WINDOW_SECONDS - now))
         raise RateLimitExceededError(
             message=f"Rate limit exceeded: too many login attempts for this {limit_type}. Please try again later.",
@@ -67,11 +79,11 @@ async def login(
     On success, returns JWT access token and basic profile information.
     On failure, returns generic error without revealing existence of email.
     """
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     email_key = credentials.email.lower().strip()
 
-    check_auth_rate_limit(client_ip, _AUTH_IP_TIMESTAMPS, "IP address")
-    check_auth_rate_limit(email_key, _AUTH_EMAIL_TIMESTAMPS, "account")
+    check_auth_rate_limit(client_ip, _AUTH_IP_TIMESTAMPS, "IP address", max_attempts=AUTH_MAX_IP_ATTEMPTS)
+    check_auth_rate_limit(email_key, _AUTH_EMAIL_TIMESTAMPS, "account", max_attempts=AUTH_MAX_EMAIL_ATTEMPTS)
 
     # Load user by email
     result = await db.execute(select(User).where(User.email == credentials.email))

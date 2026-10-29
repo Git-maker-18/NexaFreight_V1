@@ -16,13 +16,15 @@ services:
         value: "false"
       - key: ENVIRONMENT
         value: "production"
+      - key: ENABLE_SCHEDULER
+        value: "true"
       - key: ENABLE_BACKGROUND_SCHEDULER
-        value: "false"
+        value: "true"
       - key: ENABLE_AIS_LISTENER
-        value: "false"
+        value: "true"
       - key: ENABLE_POSITION_INTERPOLATOR
-        value: "false"
+        value: "true"
       - key: ENABLE_DISRUPTION_DETECTOR
-        value: "false"
+        value: "true"
       - key: ENABLE_SLA_CHECKER
-        value: "false"
+        value: "true"

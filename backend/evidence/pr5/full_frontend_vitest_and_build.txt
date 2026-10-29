@@ -1,12 +1,16 @@
 === Vitest Run ===
 Test Files  26 passed (26)
 Tests       352 passed (352)
-Duration    2.29s
+Duration    1.95s
+
+=== TypeScript Verification ===
+npx tsc --noEmit
+Exit code: 0 (no errors)
 
 === Next.js 16.4.3 Production Build ===
-Compiled successfully in 5.1s
-Finished TypeScript in 4.7s ...
-Generating static pages using 11 workers (31/31) in 736ms
+Compiled successfully in 3.4s
+Finished TypeScript in 2.5s ...
+Generating static pages using 11 workers (31/31) in 812ms
 Finalizing page optimization ...
 Collecting build traces ...
 Route (app)

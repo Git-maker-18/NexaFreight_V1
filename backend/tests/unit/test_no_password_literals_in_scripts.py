@@ -29,10 +29,15 @@ def test_no_plaintext_password_literals_in_scripts():
         content = py_file.read_text(encoding="utf-8")
         lines = content.splitlines()
 
+        in_docstring = False
         for idx, line in enumerate(lines, start=1):
             stripped = line.strip()
-            # Ignore comments and docstrings
-            if stripped.startswith("#") or stripped.startswith('"""') or stripped.startswith("'''"):
+            # Toggle multi-line docstrings
+            if stripped.startswith('"""') or stripped.startswith("'''"):
+                if stripped.count('"""') == 1 or stripped.count("'''") == 1:
+                    in_docstring = not in_docstring
+                continue
+            if in_docstring or stripped.startswith("#"):
                 continue
 
             for forbidden in FORBIDDEN_LITERALS:

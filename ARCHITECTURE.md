@@ -54,18 +54,18 @@ flowchart TD
 ### ADR-04: Out-of-Process Nightly Cron Ingestion
 - **Problem**: In-process background schedulers (e.g. APScheduler) in multi-worker or autoscaling container environments cause duplicate job execution, memory leaks, and job overlap.
 - **Solution**:
-  - Production containers disable internal scheduling loops (`ENABLE_BACKGROUND_SCHEDULER=false`).
-  - Nightly syncs are triggered via `.github/workflows/nightly.yml` sending an HMAC-SHA256 signed request to `POST /internal/nightly`.
+  - In single-worker production demo environments, internal background workers are enabled (`ENABLE_SCHEDULER=true`) to run the position interpolator, disruption detector, SLA checker, and AIS stream listener.
+  - Multi-worker or autoscaling environments can disable internal scheduling loops (`ENABLE_BACKGROUND_SCHEDULER=false`), relying on `.github/workflows/nightly.yml` sending an HMAC-SHA256 signed request to `POST /internal/nightly`.
   - Constant-time verification (`hmac.compare_digest`) and a 300-second timestamp drift window prevent replay attacks.
 
-### ADR-05: GLEC Framework v3.2 Emissions Accounting
+### ADR-05: GLEC Framework Emissions Accounting
 - **Problem**: Divergent emission factors across modules caused mathematical discrepancies between leg-level emissions and Network KPI aggregations.
 - **Solution**:
-  - Unified default emission factors derived from GLEC Framework v3.2:
-    - **AIR**: 602.0 g CO2e / tonne-km (air freight, global average (GLEC v3.2 Table 19 / default cargo aircraft))
-    - **ROAD**: 62.0 g CO2e / tonne-km (heavy articulated truck)
-    - **RAIL**: 22.0 g CO2e / tonne-km (continental diesel/electric mix)
-    - **SEA**: 16.1 g CO2e / tonne-km (container vessel 8,000–14,999 TEU)
+  - Unified default emission factors derived from GLEC default intensity factors (basis not independently verified):
+    - **AIR**: 602.0 g CO2e / tonne-km
+    - **ROAD**: 62.0 g CO2e / tonne-km
+    - **RAIL**: 22.0 g CO2e / tonne-km
+    - **SEA**: 16.1 g CO2e / tonne-km
   - All calculation paths (`params.py`, `route_planner.py`, `financial_engine.py`, migration backfills) consume the centralized `DEFAULT_CO2_FACTORS` source of truth.
 
 ---

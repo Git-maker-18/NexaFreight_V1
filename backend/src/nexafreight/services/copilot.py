@@ -236,9 +236,8 @@ async def answer_shipment_question(
         )
         adapter = gemini if gemini.available else ollama
 
-    sanitized_question = re.sub(
-        r"<\s*script[^>]*>.*?<\s*/\s*script\s*>", "", question, flags=re.IGNORECASE | re.DOTALL
-    ).strip()
+    # Format user question for model context
+    user_question = question.strip()
 
     # Separate system and user messages; json.dumps the context (item 13)
     system_instruction = (
@@ -253,7 +252,7 @@ async def answer_shipment_question(
     user_message = (
         f"[SYSTEM COMPUTED FACTS]\n- Delivery Status: {base_eta_status}\n- Demurrage: {base_demurrage}\n[END FACTS]\n\n"
         f"[SHIPMENT DATA]\n{json.dumps(context, indent=2)}\n[END DATA]\n\n"
-        f"[USER QUESTION]\n{sanitized_question}\n[END QUESTION]"
+        f"[USER QUESTION]\n{user_question}\n[END QUESTION]"
     )
 
     full_prompt = f"[SYSTEM INSTRUCTION]\n{system_instruction}\n\n{user_message}"
@@ -261,9 +260,7 @@ async def answer_shipment_question(
     if getattr(adapter, "available", False):
         raw_answer = await adapter.complete(full_prompt)
         if raw_answer:
-            answer = re.sub(
-                r"<\s*script[^>]*>.*?<\s*/\s*script\s*>", "", raw_answer, flags=re.IGNORECASE | re.DOTALL
-            ).strip()
+            answer = raw_answer.strip()
             source = "llm"
             _record_llm_audit(
                 session,

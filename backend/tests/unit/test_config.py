@@ -152,3 +152,18 @@ def test_real_env_vars_override_env_file(tmp_path: Path, monkeypatch: pytest.Mon
     settings = Settings()  # type: ignore[call-arg]
 
     assert settings.jwt_secret.get_secret_value() == "from-real-env"
+
+
+def test_render_yaml_scheduler_and_worker_flags_enabled() -> None:
+    """Verify render.yaml enables scheduler and all background workers for demo."""
+    import yaml
+    render_yaml_path = Path(__file__).resolve().parents[3] / "render.yaml"
+    assert render_yaml_path.exists(), f"render.yaml not found at {render_yaml_path}"
+    data = yaml.safe_load(render_yaml_path.read_text(encoding="utf-8"))
+    env_vars = {item["key"]: item.get("value") for item in data["services"][0]["envVars"]}
+    assert env_vars.get("ENABLE_SCHEDULER") == "true"
+    assert env_vars.get("ENABLE_BACKGROUND_SCHEDULER") == "true"
+    assert env_vars.get("ENABLE_AIS_LISTENER") == "true"
+    assert env_vars.get("ENABLE_POSITION_INTERPOLATOR") == "true"
+    assert env_vars.get("ENABLE_DISRUPTION_DETECTOR") == "true"
+    assert env_vars.get("ENABLE_SLA_CHECKER") == "true"
