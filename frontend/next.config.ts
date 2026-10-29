@@ -2,7 +2,9 @@
 import type { NextConfig } from "next";
 
 const isProd = process.env.NODE_ENV === "production";
-const backendOrigin = process.env.NEXT_PUBLIC_BACKEND_ORIGIN || (isProd ? "" : "http://localhost:8000");
+const rawOrigin = process.env.NEXT_PUBLIC_BACKEND_ORIGIN || (isProd ? "" : "http://localhost:8000");
+// Strip surrounding single/double quotes, trailing slashes, and trim whitespace
+const backendOrigin = rawOrigin.replace(/^["']|["']$/g, '').trim().replace(/\/$/, '');
 
 // In production: drop unsafe-eval from script-src and remove localhost/127.0.0.1 from connect-src
 const cspValue = isProd
@@ -24,7 +26,8 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   async rewrites() {
-    const backendUrl = process.env.NEXA_BACKEND_URL || process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+    const rawBackendUrl = process.env.NEXA_BACKEND_URL || process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+    const backendUrl = rawBackendUrl.replace(/^["']|["']$/g, '').trim().replace(/\/$/, '');
     return [
       {
         source: '/api/nexa/:path*',

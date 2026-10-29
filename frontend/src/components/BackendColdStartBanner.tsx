@@ -27,8 +27,10 @@ export default function BackendColdStartBanner() {
 
     const checkBackend = async () => {
       try {
-        const backendOrigin = process.env.NEXT_PUBLIC_NEXA_API_URL || process.env.NEXT_PUBLIC_BACKEND_ORIGIN || '';
-        const healthUrl = backendOrigin ? `${backendOrigin}/healthz` : '/api/nexa/healthz';
+        const rawOrigin = process.env.NEXT_PUBLIC_NEXA_API_URL || process.env.NEXT_PUBLIC_BACKEND_ORIGIN || '';
+        const backendOrigin = rawOrigin.replace(/^["']|["']$/g, '').trim().replace(/\/$/, '');
+        const isInvalidDummy = backendOrigin.includes('your-backend') || backendOrigin.includes('example.com');
+        const healthUrl = (backendOrigin && !isInvalidDummy) ? `${backendOrigin}/healthz` : '/api/nexa/healthz';
         const res = await fetch(healthUrl, {
           cache: 'no-store',
           signal: AbortSignal.timeout(5000),

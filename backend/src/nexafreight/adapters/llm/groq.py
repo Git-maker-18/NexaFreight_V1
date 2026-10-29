@@ -70,3 +70,4 @@ class GroqAdapter:
             return None
 
         return None
+

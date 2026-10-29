@@ -43,13 +43,14 @@ const isBrowser = typeof window !== 'undefined'
 const isDev = process.env.NODE_ENV === 'development'
 const devDirectOptIn = isDev && process.env.NEXT_PUBLIC_USE_DIRECT_BACKEND === 'true'
 
-export const BASE_URL = (
+const rawBaseUrl = (
   devDirectOptIn
     ? (process.env.NEXT_PUBLIC_NEXA_API_URL || 'http://localhost:8000')
     : isBrowser
       ? '/api/nexa'
       : (process.env.NEXA_BACKEND_URL || process.env.BACKEND_URL || process.env.NEXT_PUBLIC_NEXA_API_URL || 'http://127.0.0.1:8000')
-).replace(/\/$/, '') // strip trailing slash
+)
+export const BASE_URL = rawBaseUrl.replace(/^[\"\']|[\"\']$/g, '').trim().replace(/\/$/, '')
 
 /**
  * Resolves an API path against BASE_URL.

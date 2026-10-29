@@ -5,9 +5,10 @@ import LoadingGlobe from '@/components/art/LoadingGlobe';
 import { useState, useRef, useEffect, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { login } from '@/lib/nexafreight/client'
 import { NexaHttpError, NexaNetworkError } from '@/lib/nexafreight/errors'
-import { AuthProvider, useAuthStore } from '@/store/useAuthStore'
+import { useAuthStore } from '@/store/useAuthStore'
 import { getCurrentUser } from '@/lib/nexafreight/client'
 
 // ─── Inner form (needs access to auth store context) ─────────────────────────
@@ -16,8 +17,9 @@ function LoginForm() {
   const router = useRouter()
   const { setAuth } = useAuthStore()
 
-  const [email, setEmail] = useState('operator@nexafreight.local')
-  const [password, setPassword] = useState('operator123')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [expiredNotice, setExpiredNotice] = useState(false)
@@ -52,11 +54,13 @@ function LoginForm() {
       router.push('/')
     } catch (err) {
       console.error('[NexaFreight login error]', err)
-      if (err instanceof NexaHttpError && err.isUnauthorized) {
+      if (err instanceof NexaHttpError && err.status === 429) {
+        setError('Too many failed attempts. Rate limit reached — please wait 60s.')
+      } else if (err instanceof NexaHttpError && err.isUnauthorized) {
         setError('Invalid credentials. Check your email and password.')
       } else if (err instanceof NexaNetworkError) {
         const detail = err.cause instanceof Error ? err.cause.message : String(err.cause ?? '')
-        setError(`Cannot reach the NexaFreight server (${detail || 'port 8000'}). Check console.`)
+        setError(`Cannot reach backend server (${detail || 'offline'}). Check network or cold-start banner.`)
       } else if (err instanceof NexaHttpError) {
         setError(`Server error ${err.status}: ${err.detail}`)
       } else {
@@ -127,7 +131,7 @@ function LoginForm() {
               required
               value={email}
               onChange={e => setEmail(e.target.value)}
-              placeholder="operator@nexafreight.dev"
+              placeholder="operator@nexafreight.local"
               style={styles.input}
               disabled={loading}
               aria-describedby={error ? 'nf-error' : undefined}
@@ -138,17 +142,29 @@ function LoginForm() {
             <label htmlFor="nf-password" style={styles.label}>
               PASSWORD
             </label>
-            <input
-              id="nf-password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              style={styles.input}
-              disabled={loading}
-            />
+            <div style={{ position: 'relative', width: '100%', display: 'flex', alignItems: 'center' }}>
+              <input
+                id="nf-password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                style={{ ...styles.input, paddingRight: 40 }}
+                disabled={loading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(prev => !prev)}
+                style={styles.eyeButton}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                title={showPassword ? 'Hide password' : 'Show password'}
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff size={16} strokeWidth={1.8} /> : <Eye size={16} strokeWidth={1.8} />}
+              </button>
+            </div>
           </div>
 
           {/* Error message */}
@@ -199,11 +215,32 @@ function LoginForm() {
           </motion.button>
         </form>
 
-        {/* Footer hint */}
-        <p style={styles.hint}>
-          Seeded operator account:&nbsp;
-          <code style={styles.code}>operator@nexafreight.dev</code>
-        </p>
+        {/* Default credentials card */}
+        <div style={styles.demoCard}>
+          <div style={styles.demoHeader}>
+            <ShieldCheck size={14} style={{ color: 'var(--cobalt)' }} />
+            <span>OPERATIONAL ACCESS CREDENTIALS</span>
+          </div>
+          <div style={styles.demoRow}>
+            <span style={styles.demoLabel}>Account:</span>
+            <code style={styles.code}>operator@nexafreight.local</code>
+          </div>
+          <div style={styles.demoRow}>
+            <span style={styles.demoLabel}>Password:</span>
+            <code style={styles.code}>password123</code>
+          </div>
+          <button
+            type="button"
+            style={styles.fillButton}
+            onClick={() => {
+              setEmail('operator@nexafreight.local')
+              setPassword('password123')
+              setError(null)
+            }}
+          >
+            AUTO-FILL OPERATOR CREDENTIALS
+          </button>
+        </div>
       </motion.main>
     </div>
   )
@@ -236,7 +273,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     maxWidth: 420,
     margin: '0 16px',
-    padding: '40px 36px 32px',
+    padding: '36px 32px 28px',
     background: 'var(--paper)',
     border: '1px solid var(--border-hairline)',
     borderRadius: 3,
@@ -247,31 +284,7 @@ const styles: Record<string, React.CSSProperties> = {
   // Header section
   header: {
     textAlign: 'center',
-    marginBottom: 32,
-  },
-
-  eyeGlyph: {
-    fontSize: 16,
-    marginBottom: 12,
-    color: 'var(--ink)',
-  },
-
-  title: {
-    margin: '0 0 8px 0',
-    fontSize: '20px',
-    fontWeight: 500,
-    letterSpacing: '-0.01em',
-    color: 'var(--ink)',
-    fontFamily: 'var(--font-ui)',
-  },
-
-  subtitle: {
-    margin: '0 0 16px 0',
-    fontSize: '14px',
-    fontWeight: 400,
-    letterSpacing: '0',
-    color: 'var(--text-secondary)',
-    fontFamily: 'var(--font-ui)',
+    marginBottom: 24,
   },
 
   divider: {
@@ -282,7 +295,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   // Form
   form: {
-    marginTop: 24,
+    marginTop: 16,
   },
 
   fieldGroup: {
@@ -291,9 +304,9 @@ const styles: Record<string, React.CSSProperties> = {
 
   label: {
     display: 'block',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: 600,
-    letterSpacing: '0.05em',
+    letterSpacing: '0.06em',
     color: 'var(--ink)',
     fontFamily: 'var(--font-ui)',
     marginBottom: 6,
@@ -311,6 +324,22 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid var(--border-hairline)',
     borderRadius: 2,
     boxSizing: 'border-box',
+    outline: 'none',
+  },
+
+  eyeButton: {
+    position: 'absolute',
+    right: 10,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    background: 'none',
+    border: 'none',
+    padding: 4,
+    cursor: 'pointer',
+    color: 'var(--text-secondary, #71717a)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // Error box
@@ -336,7 +365,7 @@ const styles: Record<string, React.CSSProperties> = {
   // Submit button
   button: {
     width: '100%',
-    padding: '8px 16px',
+    padding: '10px 16px',
     fontFamily: 'var(--font-ui)',
     fontSize: '13px',
     fontWeight: 600,
@@ -357,19 +386,61 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 6,
   },
 
-  // Footer hint
-  hint: {
-    marginTop: 20,
-    textAlign: 'center',
-    fontSize: '12px',
-    color: 'var(--text-secondary)',
+  // Demo card
+  demoCard: {
+    marginTop: 22,
+    padding: '12px 14px',
+    background: 'rgba(0, 0, 0, 0.02)',
+    border: '1px dashed var(--border-hairline, #d4d4d8)',
+    borderRadius: 3,
+    fontSize: '11px',
     fontFamily: 'var(--font-ui)',
-    margin: '20px 0 0 0',
+  },
+
+  demoHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    fontWeight: 600,
+    fontSize: '10px',
+    letterSpacing: '0.05em',
+    color: 'var(--ink, #18181b)',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+
+  demoRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+
+  demoLabel: {
+    color: 'var(--text-secondary, #71717a)',
+    fontSize: '11px',
+    width: 60,
   },
 
   code: {
-    fontFamily: 'var(--font-mono)',
+    fontFamily: 'var(--font-mono, monospace)',
     fontSize: '11px',
-    color: 'var(--cobalt)',
+    color: 'var(--cobalt, #2547C8)',
+  },
+
+  fillButton: {
+    marginTop: 8,
+    width: '100%',
+    padding: '6px 10px',
+    background: 'var(--paper, #ffffff)',
+    border: '1px solid var(--border-hairline, #d4d4d8)',
+    borderRadius: 2,
+    color: 'var(--cobalt, #2547C8)',
+    fontSize: '10px',
+    fontWeight: 600,
+    fontFamily: 'var(--font-mono, monospace)',
+    letterSpacing: '0.05em',
+    cursor: 'pointer',
+    textTransform: 'uppercase',
   },
 }
