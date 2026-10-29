@@ -71,3 +71,4 @@ assert abs(auc_val_perm - 0.50) < 0.05, f"Leakage detected! AUC did not collapse
 assert abs(auc_test_perm - 0.50) < 0.05, f"Leakage detected! Test AUC did not collapse: {auc_test_perm}"
 
 print("\nAll permutation checks passed: no label leakage into features.")
+

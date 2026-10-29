@@ -1,0 +1,124 @@
+{
+  "crosstab": {
+    "train": {
+      "AIR": {
+        "n": 9723,
+        "late_count": 7998,
+        "late_rate": 0.8226
+      },
+      "RAIL": {
+        "n": 9076,
+        "late_count": 6973,
+        "late_rate": 0.7683
+      },
+      "SEA": {
+        "n": 27912,
+        "late_count": 10674,
+        "late_rate": 0.3824
+      }
+    },
+    "val": {
+      "AIR": {
+        "n": 2151,
+        "late_count": 1773,
+        "late_rate": 0.8243
+      },
+      "RAIL": {
+        "n": 2029,
+        "late_count": 1543,
+        "late_rate": 0.7605
+      },
+      "SEA": {
+        "n": 6281,
+        "late_count": 2365,
+        "late_rate": 0.3765
+      }
+    },
+    "test": {
+      "AIR": {
+        "n": 1776,
+        "late_count": 1479,
+        "late_rate": 0.8328
+      },
+      "RAIL": {
+        "n": 1673,
+        "late_count": 1287,
+        "late_rate": 0.7693
+      },
+      "SEA": {
+        "n": 5131,
+        "late_count": 1956,
+        "late_rate": 0.3812
+      }
+    }
+  },
+  "shipping_mode_baseline_test_auc": 0.7095,
+  "full_model_test_auc": 0.7273,
+  "share_of_excess_auc_pct": 92.2,
+  "single_feature_auc_ranked": [
+    [
+      "scheduled_shipping_days",
+      0.7289
+    ],
+    [
+      "shipping_mode",
+      0.7095
+    ],
+    [
+      "order_profit",
+      0.5045
+    ],
+    [
+      "shipping_cost",
+      0.5042
+    ],
+    [
+      "sla_month",
+      0.5038
+    ],
+    [
+      "revenue",
+      0.5034
+    ],
+    [
+      "order_country",
+      0.5024
+    ],
+    [
+      "sla_quarter",
+      0.5007
+    ],
+    [
+      "total_distance_km",
+      0.5
+    ],
+    [
+      "leg_count",
+      0.5
+    ],
+    [
+      "cargo_class",
+      0.499
+    ],
+    [
+      "sla_weekday",
+      0.4988
+    ],
+    [
+      "product_price",
+      0.4946
+    ],
+    [
+      "customer_country",
+      0.4944
+    ]
+  ],
+  "ablation_without_mode_and_sched_auc": 0.5007,
+  "bootstrap_delta_auc": {
+    "mean": 0.0178,
+    "ci_95": [
+      0.0105,
+      0.0254
+    ]
+  }
+}

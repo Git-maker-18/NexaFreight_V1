@@ -237,12 +237,12 @@ async def test_modal_shift_option_math(
     assert modal.option_key == "MODAL_SHIFT_AIR"
     # air: 0.9 × 5000 × 28 = 126000 vs sea 1680 → Δ 124320 (NCAER-anchored rates)
     assert modal.cost_delta_usd == pytest.approx(124_320.0)
-    # co2: (500 − 8.0) g/t-km × 5000 × 28 /1000 = 68880 kg
-    assert modal.co2_delta_kg == pytest.approx(68_880.0)
+    # co2: (602.0 − 8.0) g/t-km × 5000 × 28 /1000 = 83160 kg (GLEC v3.2 AIR 602.0)
+    assert modal.co2_delta_kg == pytest.approx(83_160.0)
     # air ETA = now + 5000/800 + 12h → ~18h — well before the deadline
     assert modal.sla_penalty_usd == 0.0
-    # Δfreight 124320 + carbon 5527.20 + insurance delta 99 (20000 × 1.1 × 0.45%)
-    assert modal.total_impact_usd == pytest.approx(124_320.0 + 5_510.4 + 99.0)
+    # Δfreight 124320 + carbon 6652.80 + insurance delta 99 (20000 × 1.1 × 0.45%)
+    assert modal.total_impact_usd == pytest.approx(124_320.0 + 6_652.8 + 99.0)
 
 
 async def test_modal_shift_revised_eta_uses_now_as_anchor(

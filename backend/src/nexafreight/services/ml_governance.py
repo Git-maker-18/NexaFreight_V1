@@ -212,6 +212,7 @@ def champion_self_check(models_dir: Path, processed_dir: Path) -> dict:
     # Serve through the model's own encode -> predict -> rearrange path.
     model = EtaQuantileModel()
     model.load(models_dir)
+    model.models = bundle.get("models", {})
     preds = model.predict(frame)  # DataFrame batch -> list[EtaPrediction]
     p10 = np.array([p.p10_residual for p in preds], dtype=float)
     p50 = np.array([p.p50_residual for p in preds], dtype=float)

@@ -178,8 +178,8 @@ def test_calculate_freight_cost_by_mode() -> None:
 
 def test_calculate_co2_kg_by_mode() -> None:
     """kg CO2 = g/t-km × km × t / 1000."""
-    # AIR: 500 × 5000 × 28 / 1000 = 70000 kg
-    assert calculate_co2_kg(5000.0, 28.0, "AIR") == 70_000.0
+    # AIR: 602 × 5000 × 28 / 1000 = 84280 kg (GLEC v3.2 factor 602.0)
+    assert calculate_co2_kg(5000.0, 28.0, "AIR") == 84_280.0
     # SEA: 8.0 × 5000 × 28 / 1000 = 1120 kg (GLEC band mid)
     assert calculate_co2_kg(5000.0, 28.0, "SEA") == 1_120.0
 

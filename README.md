@@ -73,9 +73,9 @@ Global supply chain operations are inherently fragmented. Ocean container shippi
 - **Audit Logging**: Approved operator decisions commit directly to an immutable database ledger with before/after variance tracking.
 
 ### 3. Predictive Machine Learning & Forecasting
-- **Delay Classifier (LightGBM)**: Trained on historical international supply chain data with strict chronological splits and post-hoc leakage bans. **Validation AUC: 0.7315**, PR-AUC: 0.791.
-- **Demand Forecasting (StatsForecast AutoETS)**: Models forward cargo volume across **79 international trade corridors** with 80% confidence intervals. **WAPE: 32.16%** (+26.9% lift over seasonal-naive baselines).
-- **ETA Quantile Residual Estimator**: Quantile regression evaluating $p_{10}$, $p_{50}$, and $p_{85}$ delay margins for operational risk banding (`ON_TIME`, `MEDIUM`, `HIGH`, `BREACH`).
+- **Delay Classifier (LightGBM)**: Trained on historical supply chain data with strict chronological splits and post-hoc leakage bans. **Validation AUC: 0.7315**, PR-AUC: 0.791 (predominantly recovers synthetic mode-schedule labelling rules; see Limitations).
+- **Demand Forecasting (StatsForecast AutoETS)**: Models forward cargo volume across **79 international trade corridors** with 80% confidence intervals. **WAPE: 32.16%** (+26.9% lift over seasonal-naive baselines; note that underlying DataCo order volumes are synthetic).
+- **ETA Quantile Residual Estimator**: Calibrated empirical lane transit-time residual quantiles evaluating $p_{10}$, $p_{50}$, and $p_{85}$ margins for operational risk banding (`ON_TIME`, `MEDIUM`, `HIGH`, `BREACH`). Provenance: `DERIVED`.
 
 ### 4. Operational Financials & GLEC Carbon Accounting
 - **Waterfall P&L Engine**: Real-time freight revenues, fuel adjustment factors (BAF), terminal handling charges (THC), and detention risk in Indian Rupees (₹) and USD.
@@ -291,8 +291,9 @@ npm run build
 
 ## ⚠️ Model Limitations & Scientific Benchmarks
 
-- **Delay Risk Classifier**: Trained on the DataCo Smart Supply Chain dataset. LightGBM early stopping triggers at tree iteration 3, achieving +0.024 AUC (0.731 vs. 0.707) over simple marginal lane-rate historical baselines. We hypothesize this headroom ceiling stems from synthetic label generation in the underlying dataset rather than model underfitting.
-- **ETA Quantile Estimators ($p_{10}, p_{50}, p_{85}$)**: Formulated with provenance `DERIVED` as empirical transit-time residual quantiles across historical lanes. The LightGBM quantile regression trial (-0.23% to -1.94% pinball lift against naive empirical quantiles) is preserved in `backend/eval/` as a documented negative benchmark.
+- **Delay Risk Classifier (Synthetic Label Recovery)**: Trained on the DataCo Smart Supply Chain dataset. Rigorous ablation demonstrates that ~92.2% of excess AUC over random (and >97% of learnable signal) is derived from `shipping_mode` and `scheduled_shipping_days` alone. Removing these two features collapses test ROC-AUC from 0.7273 to **0.5007** (near-random guessing). The classifier predominantly recovers DataCo's deterministic synthetic labelling rule rather than real-world delay dynamics; test AUC (~0.727) does not indicate real-world operational delay predictability. LightGBM early stopping (not Optuna trial limits) halts tree induction at iteration 3 (`best_iteration: 3`) because additional trees add no genuine signal beyond the mode mapping.
+- **ETA Quantile Estimators ($p_{10}, p_{50}, p_{85}$)**: Shipped with provenance `DERIVED` as empirical lane transit-time residual quantiles across historical modes (`AIR`: $[0, 1, 1]$, `RAIL`: $[0, 2, 4]$, `SEA`: $[-2, 0, 2]$ days). Discrete empirical test coverage is $P_{10}: 32.85\%$, $P_{50}: 66.40\%$, $P_{85}: 100.00\%$, exceeding continuous nominal percentiles because discrete integer thresholds capture full integer point-mass distributions. Serving endpoints (`/api/predict/eta` and `/api/shipments/{id}/predict`) serve directly from `LANE_QUANTILES_TABLE` and never deserialize `model.joblib`. The LightGBM quantile regression trial (-0.23% to -1.94% pinball lift against empirical baselines) is preserved in `backend/eval/` as a documented negative benchmark.
+- **Demand Forecasting (Synthetic DataCo Volumes)**: `StatsForecast AutoETS` generates calibrated volume forecasts (WAPE: 32.16%, +26.9% lift over seasonal-naive baselines across 79 lanes), but operators should note that DataCo order volumes are synthetically generated, reflecting procedural order generation rather than macroeconomic trade cycles.
 - **Data Provenance**: Explicit distinction between live real-time signals (`REAL`), calibrated empirical benchmarks (`CALIBRATED`), mathematically reconstructed historical orders/routes (`DERIVED`), and simulation intervals (`SIMULATED`).
 
 ---

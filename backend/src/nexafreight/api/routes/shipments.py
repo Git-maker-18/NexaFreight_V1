@@ -501,6 +501,7 @@ async def predict_shipment_delay(
     from datetime import UTC, datetime, timedelta
 
     from sqlalchemy import select as _select
+    from sqlalchemy.orm import selectinload as _selectinload
 
     from nexafreight.enums import LegStatus as _LegStatus
     from nexafreight.models import Location as _Location
@@ -517,6 +518,7 @@ async def predict_shipment_delay(
         (
             await db.execute(
                 _select(_Order)
+                .options(_selectinload(_Order.items))
                 .where(_Order.shipment_id == shipment_id)
                 .order_by(_Order.sla_deadline)
                 .limit(1)
