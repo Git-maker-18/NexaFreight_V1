@@ -262,6 +262,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
+        allow_origin_regex=r"https://.*\.vercel\.app|https://.*\.onrender\.com",
         allow_credentials=True,  # Required for JWT in Authorization header
         allow_methods=["*"],
         allow_headers=["*"],
