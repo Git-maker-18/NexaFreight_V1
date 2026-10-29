@@ -79,38 +79,29 @@ from nexafreight.models import Base, Leg, Location, Order, Shipment, User
 _PG_TABLE_TRUNCATE_SQL = ""
 
 
-@pytest.fixture(scope="session")
-def _pg_shared_engine() -> Generator[AsyncEngine | None, None, None]:
-    """Session-scoped Postgres engine + schema, or None when on SQLite."""
-    global _PG_TABLE_TRUNCATE_SQL
-    url = os.environ.get("DATABASE_URL", "")
-    if not url.startswith("postgresql"):
-        yield None
-        return
-    engine = create_test_engine(url)
-    asyncio.run(create_all_tables(engine))
-    _PG_TABLE_TRUNCATE_SQL = "TRUNCATE " + ", ".join(
-        f'"{t.name}"' for t in reversed(Base.metadata.sorted_tables)
-    ) + " RESTART IDENTITY CASCADE"
-    yield engine
-    asyncio.run(drop_all_tables(engine))
-    asyncio.run(engine.dispose())
-
-
 @pytest_asyncio.fixture
 async def test_engine(
-    test_settings: Settings, _pg_shared_engine: AsyncEngine | None
+    test_settings: Settings,
 ) -> AsyncGenerator[AsyncEngine, None]:
     """Provide a clean test database engine.
 
-    Scope: function (fresh schema per test for complete isolation).
-    Cleanup: drops all tables and disposes engine after test completes.
-    Postgres: schema is session-scoped; data is TRUNCATEd per test instead.
+    Scope: function (fresh schema or data truncation per test for complete isolation).
+    Cleanup: disposes engine after test completes.
+    Postgres: schema is created by Alembic; data is TRUNCATEd per test without cross-loop pool churn.
     """
-    if _pg_shared_engine is not None:
-        async with _pg_shared_engine.begin() as conn:
-            await conn.execute(text(_PG_TABLE_TRUNCATE_SQL))
-        yield _pg_shared_engine
+    url = os.environ.get("DATABASE_URL", "")
+    if url.startswith("postgresql"):
+        engine = create_test_engine(url)
+        truncate_sql = "TRUNCATE " + ", ".join(
+            f'"{t.name}"' for t in reversed(Base.metadata.sorted_tables)
+        ) + " RESTART IDENTITY CASCADE"
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(truncate_sql))
+        except Exception:
+            await create_all_tables(engine)
+        yield engine
+        await dispose_engine(engine)
         return
 
     url = test_settings.database_url

@@ -9,11 +9,12 @@ from nexafreight.models.audit import AuditLog
 
 @pytest.mark.asyncio
 async def test_audit_log_triggers_prevent_update_and_delete(db_session: AsyncSession):
-    # Ensure SQLite triggers are active in the test session if SQLite
-    await db_session.execute(
-        text(
-            """
-            CREATE TRIGGER IF NOT EXISTS trg_audit_logs_no_update
+    # Ensure SQLite triggers are active in the test session if SQLite (PostgreSQL triggers installed by Alembic)
+    if db_session.bind.dialect.name == "sqlite":
+        await db_session.execute(
+            text(
+                """
+                CREATE TRIGGER IF NOT EXISTS trg_audit_logs_no_update
             BEFORE UPDATE ON audit_logs
             FOR EACH ROW
             BEGIN
@@ -22,19 +23,19 @@ async def test_audit_log_triggers_prevent_update_and_delete(db_session: AsyncSes
             """
         )
     )
-    await db_session.execute(
-        text(
-            """
-            CREATE TRIGGER IF NOT EXISTS trg_audit_logs_no_delete
-            BEFORE DELETE ON audit_logs
-            FOR EACH ROW
-            BEGIN
-                SELECT RAISE(FAIL, 'audit_logs is an append-only table: UPDATE and DELETE are prohibited');
-            END;
-            """
+        await db_session.execute(
+            text(
+                """
+                CREATE TRIGGER IF NOT EXISTS trg_audit_logs_no_delete
+                BEFORE DELETE ON audit_logs
+                FOR EACH ROW
+                BEGIN
+                    SELECT RAISE(FAIL, 'audit_logs is an append-only table: UPDATE and DELETE are prohibited');
+                END;
+                """
+            )
         )
-    )
-    await db_session.commit()
+        await db_session.commit()
 
     # 1. Insert must succeed
     entry = AuditLog(
