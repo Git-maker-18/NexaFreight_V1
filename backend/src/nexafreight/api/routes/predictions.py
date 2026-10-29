@@ -205,8 +205,20 @@ async def demand_forecast(
             },
         )
 
-    # Filter series to requested horizon
-    series_points = [DemandForecastSeriesPoint(**point) for point in forecast.series]
+    # Filter series to requested horizon (30, 60, or 90 days)
+    # Forecast steps are weekly; filter forecast points up to horizon_days
+    max_forecast_steps = (horizon_days + 6) // 7
+    fcst_count = 0
+    filtered_series = []
+    for point in forecast.series:
+        if point.get("is_forecast"):
+            if fcst_count < max_forecast_steps:
+                filtered_series.append(point)
+                fcst_count += 1
+        else:
+            filtered_series.append(point)
+
+    series_points = [DemandForecastSeriesPoint(**point) for point in filtered_series]
 
     return DemandForecastResponse(
         category=forecast.category,

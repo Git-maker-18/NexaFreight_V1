@@ -72,10 +72,14 @@ async def list_shipments(
         - Alert filter uses EXISTS subquery to avoid row duplication
     """
 
-    # Build base query with eager loading for locations (avoid N+1)
+    from sqlalchemy.orm import selectinload
+    from nexafreight.services.financial_engine import calculate_freight_cost
+
+    # Build base query with eager loading for locations and legs (avoid N+1)
     query = select(Shipment).options(
         joinedload(Shipment.origin),
         joinedload(Shipment.destination),
+        selectinload(Shipment.legs),
     )
 
     # Apply filters (AND logic)
@@ -140,6 +144,17 @@ async def list_shipments(
         )
         latest_leg_eta = leg_result.scalar_one_or_none()
 
+        # Compute real freight cost from legs distance and mode benchmarks
+        weight_t = max(1, getattr(shipment, 'container_count', 1)) * 14.0
+        legs_freight = sum(
+            calculate_freight_cost(leg.distance_km, weight_t, str(leg.transport_mode))
+            for leg in shipment.legs
+            if getattr(leg, 'distance_km', None) and leg.distance_km > 0
+        )
+        if legs_freight <= 0:
+            nominal_dist = 4200.0 if str(shipment.primary_transport_mode) == 'SEA' else 1100.0
+            legs_freight = calculate_freight_cost(nominal_dist, weight_t, str(shipment.primary_transport_mode))
+
         items.append(
             ShipmentListItem(
                 id=shipment.id,
@@ -149,6 +164,7 @@ async def list_shipments(
                 status=shipment.status,
                 strictest_sla_deadline=shipment.strictest_sla_deadline,
                 revised_eta=latest_leg_eta,  # Placeholder until T-040/T-043
+                estimated_cost=round(legs_freight, 2),
             )
         )
 

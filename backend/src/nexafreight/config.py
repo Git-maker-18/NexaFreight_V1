@@ -17,12 +17,19 @@ LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 logger = logging.getLogger(__name__)
 
+_BACKEND_DIR = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
 class Settings(BaseSettings):
     """Application configuration loaded from environment variables and .env file."""
 
     model_config = SettingsConfigDict(
         frozen=True,  # immutable after creation
-        env_file=".env",  # load from repo root .env
+        env_file=(
+            str(_BACKEND_DIR / ".env"),
+            str(_REPO_ROOT / ".env"),
+            ".env",
+        ),
         env_file_encoding="utf-8",
         case_sensitive=False,  # ENV vars are case-insensitive
         extra="ignore",  # ignore unknown env vars (don't fail)

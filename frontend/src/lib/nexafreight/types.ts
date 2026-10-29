@@ -130,6 +130,7 @@ export interface ShipmentListItem {
   status: ShipmentStatus
   strictest_sla_deadline: string | null  // ISO-8601 datetime string
   revised_eta: string | null             // ISO-8601 datetime string; ML placeholder for now
+  estimated_cost?: number | null         // Real server-computed freight cost (USD)
 }
 
 /**

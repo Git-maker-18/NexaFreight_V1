@@ -14,7 +14,7 @@ const cspValue = isProd
       "worker-src 'self' blob:",
       `connect-src 'self' ${backendOrigin && !backendOrigin.includes('localhost') && !backendOrigin.includes('127.0.0.1') ? backendOrigin + ' ' : ''}https: wss: data: blob:`,
     ].join("; ") + ";"
-  : `default-src 'self' 'unsafe-inline' 'unsafe-eval' http: https: ws: wss: data: blob:; connect-src 'self' https: http://localhost:8000 http://127.0.0.1:8000 ${backendOrigin} ws: wss: data: blob:;`;
+  : `default-src 'self' 'unsafe-inline' 'unsafe-eval' http: https: ws: wss: data: blob:; worker-src 'self' blob:; child-src 'self' blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; connect-src 'self' https: http://localhost:8000 http://127.0.0.1:8000 ${backendOrigin} ws: wss: data: blob:;`;
 
 const nextConfig: NextConfig = {
   output: 'standalone',

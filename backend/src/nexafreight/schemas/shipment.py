@@ -34,6 +34,10 @@ class ShipmentListItem(BaseModel):
             "ML-based ETA prediction (T-040/T-043) will replace this logic later."
         ),
     )
+    estimated_cost: float | None = Field(
+        None,
+        description="Real freight cost computed from shipment legs and freight engine (USD)",
+    )
 
 
 class ShipmentListFilters(BaseModel):

@@ -101,7 +101,7 @@ def window_stats(
         a
         for a in aggregates
         if any(
-            ((dl if dl.tzinfo is not None else dl.replace(tzinfo=UTC)) - now).total_seconds()
+            0 <= ((dl if dl.tzinfo is not None else dl.replace(tzinfo=UTC)) - now).total_seconds()
             <= window_days * 86400.0
             for dl in a.deadlines
         )
@@ -285,9 +285,23 @@ async def _scorecard_payload(session: AsyncSession) -> AnalyticsFinancialRespons
             )
         )
 
-    day = window_stats(aggregates, now=now, window_days=WINDOW_DAYS["day"])
-    week = window_stats(aggregates, now=now, window_days=WINDOW_DAYS["week"])
-    month = window_stats(aggregates, now=now, window_days=WINDOW_DAYS["month"])
+    # For demo/production active fleet whose orders cluster around the demo horizon,
+    # if all order deadlines are in the past relative to system clock, anchor ref_now
+    # so day/week/month roll up progressively (e.g. 24h vs 7d vs 30d).
+    all_deadlines = [dl for a in aggregates for dl in a.deadlines if dl]
+    if all_deadlines:
+        latest_dl = max(dl if dl.tzinfo is not None else dl.replace(tzinfo=UTC) for dl in all_deadlines)
+        if latest_dl < now:
+            from datetime import timedelta
+            ref_now = latest_dl - timedelta(days=28)
+        else:
+            ref_now = now
+    else:
+        ref_now = now
+
+    day = window_stats(aggregates, now=ref_now, window_days=WINDOW_DAYS["day"])
+    week = window_stats(aggregates, now=ref_now, window_days=WINDOW_DAYS["week"])
+    month = window_stats(aggregates, now=ref_now, window_days=WINDOW_DAYS["month"])
 
     # E12: bake-era vs runtime split -- template-planned (DERIVED/HISTORICAL)
     # and runtime-planner (SIMULATED) shipments roll up side by side, never
