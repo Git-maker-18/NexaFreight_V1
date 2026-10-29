@@ -121,6 +121,10 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = Field(default=None)
     gemini_model: str = Field(default="gemini-1.5-flash")
 
+    # Groq AI (ultra-fast cloud inference)
+    groq_api_key: SecretStr | None = Field(default=None)
+    groq_model: str = Field(default="llama-3.3-70b-versatile")
+
     # Ollama (local, no key)
     ollama_base_url: str = Field(default="http://localhost:11434")
     ollama_model: str = Field(default="llama2")
@@ -184,7 +188,7 @@ class Settings(BaseSettings):
         return self.environment == "test"
 
     # --- Validators ---
-    @field_validator("aisstream_api_key", "ors_api_key", "gemini_api_key", mode="before")
+    @field_validator("aisstream_api_key", "ors_api_key", "gemini_api_key", "groq_api_key", mode="before")
     @classmethod
     def empty_str_to_none(cls, v: Any) -> Any:
         if v == "" or (isinstance(v, SecretStr) and not v.get_secret_value()):

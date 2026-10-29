@@ -217,10 +217,20 @@ async def answer_shipment_question(
 
     if adapter is None:
         from nexafreight.adapters.llm.gemini import GeminiAdapter
+        from nexafreight.adapters.llm.groq import GroqAdapter
         from nexafreight.adapters.llm.ollama import OllamaAdapter
         from nexafreight.config import get_settings
 
         _settings = get_settings()
+        _groq_key = (
+            _settings.groq_api_key.get_secret_value()
+            if getattr(_settings, "groq_api_key", None)
+            else None
+        )
+        groq = GroqAdapter(
+            api_key=_groq_key,
+            model=getattr(_settings, "groq_model", "llama-3.3-70b-versatile"),
+        )
         _gemini_key = (
             _settings.gemini_api_key.get_secret_value()
             if _settings.gemini_api_key
@@ -234,7 +244,7 @@ async def answer_shipment_question(
             base_url=_settings.ollama_base_url,
             model=_settings.ollama_model,
         )
-        adapter = gemini if gemini.available else ollama
+        adapter = groq if groq.available else (gemini if gemini.available else ollama)
 
     # Format user question for model context
     user_question = question.strip()
@@ -322,10 +332,20 @@ async def answer_network_question(
     # LLM path for network questions
     if adapter is None:
         from nexafreight.adapters.llm.gemini import GeminiAdapter
+        from nexafreight.adapters.llm.groq import GroqAdapter
         from nexafreight.adapters.llm.ollama import OllamaAdapter
         from nexafreight.config import get_settings
 
         _settings = get_settings()
+        _groq_key = (
+            _settings.groq_api_key.get_secret_value()
+            if getattr(_settings, "groq_api_key", None)
+            else None
+        )
+        groq = GroqAdapter(
+            api_key=_groq_key,
+            model=getattr(_settings, "groq_model", "llama-3.3-70b-versatile"),
+        )
         _gemini_key = (
             _settings.gemini_api_key.get_secret_value()
             if _settings.gemini_api_key
@@ -339,7 +359,7 @@ async def answer_network_question(
             base_url=_settings.ollama_base_url,
             model=_settings.ollama_model,
         )
-        adapter = gemini if gemini.available else ollama
+        adapter = groq if groq.available else (gemini if gemini.available else ollama)
 
     if getattr(adapter, "available", False):
         prompt = (
