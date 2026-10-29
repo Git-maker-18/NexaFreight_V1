@@ -225,4 +225,24 @@ describe('NexaFreight Client — Phase 2 endpoints', () => {
       vi.unstubAllEnvs()
     }
   })
+
+  it('does not retry or fallback against localhost when a request fails', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('Network gateway failure'))
+
+    await expect(getPorts()).rejects.toThrow()
+    // Exactly 1 fetch call was attempted: no retry-to-fallback loop
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('routes through same-origin /api/nexa proxy without targetting localhost', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ type: 'FeatureCollection', features: [] }),
+    } as Response)
+
+    await getPorts()
+    const calledUrl = (global.fetch as any).mock.calls[0][0] as string
+    expect(calledUrl).not.toContain('localhost:8000')
+  })
 })
