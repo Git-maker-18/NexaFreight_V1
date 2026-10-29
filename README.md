@@ -17,6 +17,14 @@
 
 </div>
 
+## 🌐 Live Production Deployment
+
+- **Backend API (Render)**: [https://nexafreight-backend.onrender.com](https://nexafreight-backend.onrender.com)
+- **Health Probes**: [/healthz](https://nexafreight-backend.onrender.com/healthz) (Liveness) &bull; [/readyz](https://nexafreight-backend.onrender.com/readyz) (Neon PostgreSQL Readiness)
+- **Release Version**: `v1.0.2` (Hardened production deployment, single-use SSE stream tickets, masked `/docs`, and multi-arch Docker images)
+
+---
+
 ## 📌 Overview
 
 Global supply chain operations are inherently fragmented. Ocean container shipping, air cargo, railway freight, and line-haul trucking operate in disconnected data silos. When chokepoints bottleneck—whether through canal advisories, port congestion, or extreme weather—logistics teams discover delays days late, incurring severe demurrage penalties and missed customer SLAs.
