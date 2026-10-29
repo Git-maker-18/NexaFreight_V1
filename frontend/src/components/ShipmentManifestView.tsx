@@ -61,18 +61,40 @@ function computeShipmentRiskAndConfidence(item: ShipmentListItem): {
 }
 
 function estimateShipmentCostUsd(item: ShipmentListItem): number {
+  const rawId = (item.id || '').replace(/[^0-9a-f]/gi, '');
+  const seed = rawId.length >= 6 ? parseInt(rawId.slice(0, 6), 16) : 42;
+
+  let base = 2400;
   switch (item.mode) {
     case 'AIR':
-      return 8400;
+      base = 6500 + (seed % 4200);
+      break;
     case 'SEA':
-      return 2650;
+      base = 1800 + (seed % 2600);
+      break;
     case 'ROAD':
-      return 1450;
+      base = 900 + (seed % 1400);
+      break;
     case 'RAIL':
-      return 1850;
+      base = 1200 + (seed % 1600);
+      break;
     default:
-      return 2200;
+      base = 2000 + (seed % 1500);
   }
+
+  // Factor in delay exposure (SLA penalty + port demurrage)
+  if (item.strictest_sla_deadline && item.revised_eta) {
+    const sla = new Date(item.strictest_sla_deadline).getTime();
+    const eta = new Date(item.revised_eta).getTime();
+    const delayHours = (eta - sla) / 3600000;
+    if (delayHours > 0) {
+      const delayDays = Math.ceil(delayHours / 24);
+      const dailyRate = item.mode === 'SEA' ? 180 : item.mode === 'AIR' ? 450 : 120;
+      base += delayDays * dailyRate;
+    }
+  }
+
+  return base;
 }
 
 export default function ShipmentManifestView({

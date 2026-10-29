@@ -27,7 +27,9 @@ export default function BackendColdStartBanner() {
 
     const checkBackend = async () => {
       try {
-        const res = await fetch('/api/nexa/healthz', {
+        const backendOrigin = process.env.NEXT_PUBLIC_NEXA_API_URL || process.env.NEXT_PUBLIC_BACKEND_ORIGIN || '';
+        const healthUrl = backendOrigin ? `${backendOrigin}/healthz` : '/api/nexa/healthz';
+        const res = await fetch(healthUrl, {
           cache: 'no-store',
           signal: AbortSignal.timeout(5000),
         });

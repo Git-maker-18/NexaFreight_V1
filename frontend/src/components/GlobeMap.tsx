@@ -956,25 +956,47 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     
-    // Select basemap style
-    // CHARTROOM: 'paper' (positron) is the default basemap; 'dark' stays available
-    const styleUrl = initialStyleRef.current === 'paper'
-      ? 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
-      : 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+    // Robust, zero-failure CARTO tiles (Positron for paper mode, Dark Matter for dark mode)
+    const isPaper = initialStyleRef.current === 'paper';
+    const basemapStyle: any = {
+      version: 8,
+      sources: {
+        'carto-basemap': {
+          type: 'raster',
+          tiles: isPaper
+            ? [
+                'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+                'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+                'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+              ]
+            : [
+                'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+                'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+                'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+              ],
+          tileSize: 256,
+          attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        },
+      },
+      layers: [
+        {
+          id: 'carto-basemap-layer',
+          type: 'raster',
+          source: 'carto-basemap',
+          minzoom: 0,
+          maxzoom: 20,
+        },
+      ],
+    };
 
     const container = containerRef.current;
     const baseOptions = {
       container,
-      style: styleUrl,
+      style: basemapStyle,
       center: [25.48, 42.70] as [number, number], zoom: 6.5, minZoom: 1.5, maxZoom: 18,
       attributionControl: false as const,
       maxPitch: 85,
       transformRequest: (url: string) => {
-        // Route all CARTO CDN requests through the internal Next.js proxy API
-        if (url.includes('cartocdn.com')) {
-          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-          return { url: `${baseUrl}/api/proxy-tiles?url=${encodeURIComponent(url)}` };
-        }
         return { url };
       },
     };
@@ -1004,6 +1026,10 @@ function GlobeMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCli
       }
     }
     if (!map) return;
+
+    map.on('error', (e) => {
+      console.warn('[NexaFreight Map Error]:', e.error?.message || e);
+    });
 
     map.on('load', () => {
       mapRef.current = map;

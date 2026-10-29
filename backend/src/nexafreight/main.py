@@ -343,17 +343,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tags=["health"],
         include_in_schema=False,
     )
+    @app.get(
+        "/api/health",
+        response_model=HealthResponse,
+        tags=["health"],
+        include_in_schema=False,
+    )
     async def root_health_check(
         health_resp: HealthResponse = Depends(health.health_check),
     ) -> HealthResponse:
         return health_resp
 
     @app.get("/healthz", tags=["health"], include_in_schema=False)
+    @app.get("/api/healthz", tags=["health"], include_in_schema=False)
     async def healthz_check() -> dict[str, str]:
         """Liveness probe: no database touch."""
         return {"status": "ok"}
 
     @app.get("/readyz", tags=["health"], include_in_schema=False)
+    @app.get("/api/readyz", tags=["health"], include_in_schema=False)
     async def readyz_check() -> JSONResponse:
         """Readiness probe: checks DB connection with a 2s timeout."""
         import asyncio

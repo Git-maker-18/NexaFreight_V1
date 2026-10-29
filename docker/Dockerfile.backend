@@ -9,6 +9,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install runtime libraries required by C-extensions (LightGBM requires libgomp1)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libgomp1 && \
+    rm -rf /var/lib/apt/lists/*
+
 # Security: Create non-root system group and user
 RUN groupadd --system --gid 1001 nexafreight && \
     useradd --system --uid 1001 --gid nexafreight --create-home --home-dir /home/nexafreight nexafreight

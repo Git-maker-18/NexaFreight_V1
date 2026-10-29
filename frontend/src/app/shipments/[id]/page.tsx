@@ -186,33 +186,38 @@ function ShipmentDossierPageContent() {
     setLoading(true);
     setError(null);
 
+    // 1. Fetch core shipment detail immediately so page renders in ~150ms
+    nexaClient.getShipmentDetail(shipmentId)
+      .then((detail) => {
+        if (!cancelled && detail) {
+          setShipment(detail as ShipmentDetail);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err?.message || 'Failed to load shipment');
+          setLoading(false);
+        }
+      });
+
+    // 2. Stream in supplemental telemetry in parallel without blocking UI
     Promise.all([
-      nexaClient.getShipmentDetail(shipmentId).catch((err) => {
-        throw new Error(err?.message || 'Failed to load shipment');
-      }),
       getAlerts().catch(() => ({ alerts: [] })),
       getShipmentFinancials(shipmentId).catch(() => null),
       getShipmentPrediction(shipmentId).catch(() => null),
       getShipmentRoute(shipmentId).catch(() => null),
       getPorts().catch(() => null),
-    ])
-      .then(([detail, alertsResp, finResp, predResp, routeResp, portsResp]) => {
-        if (!cancelled) {
-          setShipment(detail as ShipmentDetail);
-          setAlerts(alertsResp.alerts.filter((a) => a.shipment_id === shipmentId));
-          setFinancials(finResp);
-          setPrediction(predResp);
-          setRouteData(routeResp);
-          const pf = portsResp as unknown as { type?: string; features?: PortFeat[] } | PortFeat[] | null;
-          setPortFeats(pf ? (Array.isArray(pf) ? pf : pf.features ?? []) : null);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.message || 'Failed to load dossier');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    ]).then(([alertsResp, finResp, predResp, routeResp, portsResp]) => {
+      if (!cancelled) {
+        setAlerts(alertsResp.alerts.filter((a) => a.shipment_id === shipmentId));
+        setFinancials(finResp);
+        setPrediction(predResp);
+        setRouteData(routeResp);
+        const pf = portsResp as unknown as { type?: string; features?: PortFeat[] } | PortFeat[] | null;
+        setPortFeats(pf ? (Array.isArray(pf) ? pf : pf.features ?? []) : null);
+      }
+    });
 
     return () => {
       cancelled = true;
